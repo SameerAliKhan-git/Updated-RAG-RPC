@@ -22,7 +22,7 @@ def client_with_mocks():
     app.state.db_session_factory = MagicMock()
     app.state.opensearch = MagicMock()
     app.state.redis = AsyncMock()
-    app.include_router(router)
+    app.include_router(router, prefix="/api/v1")
     return TestClient(app)
 
 

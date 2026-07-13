@@ -19,7 +19,6 @@ from src.schemas.ask import FeedbackRequest
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/v1",
     tags=["feedback"],
     dependencies=[Depends(verify_api_key)],
 )

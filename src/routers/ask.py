@@ -36,7 +36,6 @@ from src.schemas.ask import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/v1",
     tags=["corpus"],
     dependencies=[Depends(verify_api_key)],
 )
