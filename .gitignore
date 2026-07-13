@@ -1,0 +1,59 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ────────────────────────────────
+.venv/
+venv/
+ENV/
+
+# ── uv ──────────────────────────────────────────────────
+uv.lock
+
+# ── Testing ─────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Environment & secrets ───────────────────────────────
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# ── IDE ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Docker ──────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Data & artifacts ────────────────────────────────────
+data/
+*.db
+*.sqlite3
+*.log
+
+# ── OS ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Node (for any frontend tooling) ─────────────────────
+node_modules/
+
+# ── Airflow generated ───────────────────────────────────
+airflow/logs/
+airflow/simple_auth_manager_passwords.json.generated
