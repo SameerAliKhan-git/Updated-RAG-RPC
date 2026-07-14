@@ -476,6 +476,18 @@ async def verify_citations(state: AgentState) -> AgentState:
         logger.warning(f"Stripped invented citation [{inv}] from answer")
 
     # Step 2: LLM-based faithfulness check
+    import os
+    enable_llm_verify = os.getenv("ENABLE_LLM_VERIFICATION", "false").lower() == "true"
+
+    if not enable_llm_verify:
+        grounding_note = f"{len(cited_nums - invalid_nums)} citations verified"
+        _emit(state, f"verification complete (LLM validation skipped): {grounding_note}")
+        return {
+            **state,
+            "answer_markdown": cleaned_answer,
+            "grounding_note": grounding_note,
+        }
+
     try:
         prompt = VERIFIER_PROMPT.format(answer=cleaned_answer, context=context)
         response = await call_reasoning_llm(
