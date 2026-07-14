@@ -63,39 +63,33 @@ def trace_node(node_name: str):
             query = state.get("query", "")
 
             try:
-                # Get or create trace
-                trace = lf.trace(
-                    id=trace_id,
-                    name="agentic_rag_flow",
-                    input=query,
+                from langfuse import propagate_attributes
+
+                with propagate_attributes(
+                    session_id=trace_id,
                     metadata={"query_type": state.get("query_type", "unknown")},
-                )
+                    trace_name="agentic_rag_flow",
+                ):
+                    with lf.start_as_current_observation(
+                        as_type="span",
+                        name=node_name,
+                        input={"query": state.get("current_query", query), "retry_count": state.get("retry_count", 0)},
+                    ) as span:
+                        # Execute original node function
+                        result = await func(state, *args, **kwargs)
 
-                # Create span for this node
-                span = trace.span(
-                    name=node_name,
-                    input={"query": state.get("current_query", query), "retry_count": state.get("retry_count", 0)},
-                )
-
-                # Execute original node function
-                result = await func(state, *args, **kwargs)
-
-                # Log success output
-                span.update(
-                    output={
-                        "has_relevant": len(result.get("relevant_chunks", [])) > 0
-                        if "relevant_chunks" in result else None,
-                        "query_type": result.get("query_type"),
-                    }
-                )
-                span.end()
-                return result
+                        # Log success output
+                        span.update(
+                            output={
+                                "has_relevant": len(result.get("relevant_chunks", [])) > 0
+                                if "relevant_chunks" in result else None,
+                                "query_type": result.get("query_type"),
+                            }
+                        )
+                        return result
 
             except Exception as e:
-                # Log error
-                if 'span' in locals():
-                    span.update(level="ERROR", status_message=str(e))
-                    span.end()
+                logger.error(f"Error in traced node '{node_name}': {e}")
                 raise e
 
         return wrapper
