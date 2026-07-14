@@ -380,9 +380,9 @@ async def rerank_node(state: AgentState) -> AgentState:
     _emit(state, f"reranking {len(relevant)} chunks...")
 
     if toolkit:
-        reranked = await toolkit.rerank_chunks(query, relevant, top_k=8)
+        reranked = await toolkit.rerank_chunks(query, relevant, top_k=4)
     else:
-        reranked = relevant[:8]
+        reranked = relevant[:4]
 
     _emit(state, f"top {len(reranked)} chunks after reranking")
 
@@ -396,7 +396,7 @@ async def build_context(state: AgentState) -> AgentState:
 
     _emit(state, "building citation-tagged context...")
 
-    ctx = build_citation_context(reranked, max_chunks=8)
+    ctx = build_citation_context(reranked, max_chunks=4)
 
     # Convert CitationMeta dataclasses to dicts for serialization
     citation_dicts = []
