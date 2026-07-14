@@ -178,6 +178,8 @@ async def retrieve(state: AgentState) -> AgentState:
 @trace_node("grade")
 async def grade(state: AgentState) -> AgentState:
     """Node 4: CRAG-style LLM relevance grading per chunk."""
+    import asyncio
+
     chunks = state.get("all_retrieved_chunks", [])
     query = state.get("current_query", state["query"])
 
@@ -187,15 +189,15 @@ async def grade(state: AgentState) -> AgentState:
 
     _emit(state, f"grading {len(chunks)} chunks for relevance...")
 
-    relevant = []
-    for chunk in chunks[:20]:  # Cap grading at 20 chunks for latency
+    candidate_chunks = chunks[:20]  # Cap grading at 20 chunks for latency
+
+    async def grade_single_chunk(chunk):
         prompt = GRADER_PROMPT.format(
             question=query,
             paper_title=getattr(chunk, "title", "Unknown"),
             section=getattr(chunk, "section_title", "Unknown"),
             chunk_text=getattr(chunk, "text", "")[:1500],
         )
-
         try:
             response = await call_reasoning_llm(
                 messages=[{"role": "user", "content": prompt}],
@@ -203,12 +205,16 @@ async def grade(state: AgentState) -> AgentState:
                 max_tokens=256,
             )
             parsed = parse_json_response(response)
-            if parsed.get("relevant", False):
-                relevant.append(chunk)
+            return chunk if parsed.get("relevant", False) else None
         except Exception as e:
             logger.warning(f"Grading failed for chunk: {e}")
             # Include chunk on grading failure (permissive)
-            relevant.append(chunk)
+            return chunk
+
+    # Run grading tasks concurrently
+    tasks = [grade_single_chunk(chunk) for chunk in candidate_chunks]
+    results = await asyncio.gather(*tasks)
+    relevant = [res for res in results if res is not None]
 
     _emit(state, f"{len(relevant)} chunks judged relevant")
     return {**state, "relevant_chunks": relevant}
