@@ -27,6 +27,7 @@ htmlcov/
 .env
 .env.local
 .env.production
+local_credentials.txt
 *.pem
 *.key
 

@@ -285,9 +285,9 @@ Once the containers are running and healthy, you can access the following web da
 | Service / Interface | Local URL Endpoint | Username | Password |
 | :--- | :--- | :--- | :--- |
 | **Gradio Web Interface** | 🔗 [http://localhost:7860](http://localhost:7860) | *No credentials* | *No credentials* |
-| **Langfuse Observability** | 🔗 [http://localhost:3001](http://localhost:3001) | `admin@example.com` | `admin123` |
-| **Airflow 3 Scheduler** | 🔗 [http://localhost:8080](http://localhost:8080) | `admin` | `qPYvxB3Y6Xyx769G` |
-| **MinIO S3 Console** | 🔗 [http://localhost:9090](http://localhost:9090) | `langfuse_minio` | `langfuse_minio_secret` |
+| **Langfuse Observability** | 🔗 [http://localhost:3001](http://localhost:3001) | `admin@example.com` | `<LANGFUSE_INIT_USER_PASSWORD_in_compose>` *(check local_credentials.txt)* |
+| **Airflow 3 Scheduler** | 🔗 [http://localhost:8080](http://localhost:8080) | `admin` | `<auto_generated_simple_auth_password>` *(check local_credentials.txt)* |
+| **MinIO S3 Console** | 🔗 [http://localhost:9090](http://localhost:9090) | `langfuse_minio` | `<LANGFUSE_MINIO_SECRET_KEY_in_env>` *(check local_credentials.txt)* |
 | **Grafana Monitoring** | 🔗 [http://localhost:3002](http://localhost:3002) | `admin` | `admin` *(change on first login)* |
 | **OpenSearch Dashboards** | 🔗 [http://localhost:5601](http://localhost:5601) | *No credentials* | *No credentials* |
 
