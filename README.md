@@ -235,6 +235,9 @@ Ensure you have the following installed on your system:
 *   **Docker Desktop** (with Compose v2+)
 *   **Python 3.12+**
 *   **uv** package manager ([Installation Guide](https://docs.astral.sh/uv/getting-started/installation/))
+*   **Ollama CLI** (installed natively on host Windows to utilize hardware GPU acceleration)
+
+---
 
 ### 2. Configure Local Environment
 Clone the repository and copy the environment template:
@@ -245,20 +248,50 @@ cd Updated-RAG-RPC
 # Scaffolding configuration files
 cp .env.example .env
 ```
-Open `.env` and fill in your keys (especially `JINA_API_KEY` for embeddings, and generate a new encryption key using `openssl rand -hex 32` for `LANGFUSE_ENCRYPTION_KEY`).
+Open `.env` and fill in your keys (especially generate a new encryption key using `openssl rand -hex 32` for `LANGFUSE_ENCRYPTION_KEY`). Set `RERANKER__BACKEND=noop` to skip external Jina AI API timeouts.
 
-### 3. Synchronize Dependencies
-Use the `uv` tool to install python dependencies in a local virtual environment:
-```bash
-uv sync
-```
+---
+
+### 3. Native Host Ollama GPU Startup
+To leverage your system's hardware GPU/VRAM for sub-second text generation speeds:
+1. Open a **PowerShell** window on the host.
+2. Run the environment toggles to bypass HIP/ROCm and force Vulkan GPU compute:
+   ```powershell
+   $env:HIP_VISIBLE_DEVICES="-1"
+   $env:OLLAMA_IGPU_ENABLE="1"
+   $env:OLLAMA_VULKAN="1"
+   ollama serve
+   ```
+3. In another terminal, pull the default RAG model:
+   ```bash
+   ollama pull llama3.2:1b
+   ```
+
+---
 
 ### 4. Build and Start Services
 Start the infrastructure services in the background using docker compose:
 ```bash
 docker compose up --build -d
 ```
-This spins up PostgreSQL, OpenSearch, Redis, Ollama, Airflow, Clickhouse, Langfuse, Prometheus, and Grafana containers.
+This spins up PostgreSQL, OpenSearch, Redis, Airflow, Clickhouse, Langfuse, Prometheus, and Grafana containers.
+
+---
+
+### 🔐 Master Services Credentials Directory
+
+Once the containers are running and healthy, you can access the following web dashboards:
+
+| Service / Interface | Local URL Endpoint | Username | Password |
+| :--- | :--- | :--- | :--- |
+| **Gradio Web Interface** | 🔗 [http://localhost:7860](http://localhost:7860) | *No credentials* | *No credentials* |
+| **Langfuse Observability** | 🔗 [http://localhost:3001](http://localhost:3001) | `admin@example.com` | `admin123` |
+| **Airflow 3 Scheduler** | 🔗 [http://localhost:8080](http://localhost:8080) | `admin` | `qPYvxB3Y6Xyx769G` |
+| **MinIO S3 Console** | 🔗 [http://localhost:9090](http://localhost:9090) | `langfuse_minio` | `langfuse_minio_secret` |
+| **Grafana Monitoring** | 🔗 [http://localhost:3002](http://localhost:3002) | `admin` | `admin` *(change on first login)* |
+| **OpenSearch Dashboards** | 🔗 [http://localhost:5601](http://localhost:5601) | *No credentials* | *No credentials* |
+
+---
 
 ---
 
