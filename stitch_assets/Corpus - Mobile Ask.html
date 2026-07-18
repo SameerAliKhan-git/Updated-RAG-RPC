@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Corpus Ask - Mobile</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Fraunces:wght@500;600&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#353530",
+                        "outline": "#928fa0",
+                        "secondary-fixed": "#58fbda",
+                        "surface-tint": "#c5c0ff",
+                        "on-primary-container": "#20008e",
+                        "on-tertiary-container": "#5a0600",
+                        "surface-dim": "#13140f",
+                        "on-secondary-container": "#005346",
+                        "on-tertiary-fixed-variant": "#8a1b0b",
+                        "secondary": "#44edcc",
+                        "secondary-fixed-dim": "#2cdebe",
+                        "error": "#ffb4ab",
+                        "on-error": "#690005",
+                        "surface-bright": "#393934",
+                        "on-background": "#e4e2db",
+                        "primary-container": "#8b80ff",
+                        "on-surface-variant": "#c8c4d7",
+                        "surface-container": "#1f201b",
+                        "tertiary-container": "#ef644c",
+                        "tertiary-fixed-dim": "#ffb4a6",
+                        "on-primary-fixed": "#150067",
+                        "surface-container-lowest": "#0e0f0a",
+                        "primary": "#c5c0ff",
+                        "inverse-on-surface": "#30312b",
+                        "on-surface": "#e4e2db",
+                        "secondary-container": "#00d0b1",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#e4dfff",
+                        "tertiary": "#ffb4a6",
+                        "on-secondary-fixed-variant": "#005143",
+                        "error-container": "#93000a",
+                        "inverse-primary": "#5646d7",
+                        "surface": "#13140f",
+                        "outline-variant": "#474554",
+                        "primary-fixed-dim": "#c5c0ff",
+                        "inverse-surface": "#e4e2db",
+                        "on-primary-fixed-variant": "#3d28bf",
+                        "tertiary-fixed": "#ffdad3",
+                        "surface-variant": "#353530",
+                        "on-secondary-fixed": "#00201a",
+                        "surface-container-low": "#1b1c17",
+                        "on-secondary": "#00382e",
+                        "on-primary": "#2600a1",
+                        "on-tertiary-fixed": "#3f0300",
+                        "surface-container-high": "#2a2a25",
+                        "on-tertiary": "#660800",
+                        "background": "#13140f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "container-padding": "16px",
+                        "gutter": "16px",
+                        "panel-gap": "12px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "display": ["Fraunces"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "headline-lg": ["Fraunces"],
+                        "headline-lg-mobile": ["Fraunces"],
+                        "label-mono": ["IBM Plex Mono"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "display": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "label-mono": ["13px", { "lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-panel {
+            background-color: rgba(53, 53, 48, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #c5c0ff, #58fbda);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gradient-border-b {
+            border-bottom: 2px solid transparent;
+            border-image: linear-gradient(135deg, #c5c0ff, #58fbda) 1;
+        }
+
+        .orb-glow {
+            box-shadow: 0 0 20px 5px rgba(88, 251, 218, 0.2);
+        }
+
+        /* Drawer Transitions */
+        #left-drawer {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #left-drawer.open {
+            transform: translateX(0);
+        }
+
+        #bottom-sheet {
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #bottom-sheet.open {
+            transform: translateY(0);
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface h-screen w-screen overflow-hidden relative">
+<!-- Background Shader -->
+<!-- STITCH_SHADER_START:ANIMATION_10 class="absolute inset-0 w-full h-full z-0 opacity-40" -->
+<div class="absolute inset-0 w-full h-full z-0 opacity-40" style="display:block;">
+<canvas id="shader-canvas-ANIMATION_10" style="display:block;width:100%;height:100%"></canvas>
+<script>
+(function() {
+  const canvas = document.getElementById('shader-canvas-ANIMATION_10');
+
+  // Sync the WebGL drawing-buffer size with the CSS-driven layout size.
+  // This fires on initial layout and whenever the element is resized.
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+varying vec2 v_texCoord;
+
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+void main() {
+    vec2 uv = v_texCoord;
+    vec2 mouse = u_mouse / u_resolution;
+    
+    // Deep ink-navy base
+    vec3 color = vec3(0.039, 0.051, 0.078); // #0A0D14
+    
+    // Ambient drift
+    vec2 drift = vec2(u_time * 0.02, u_time * 0.01);
+    
+    // Evidence Constellation Motif
+    vec2 grid = (uv + drift) * 12.0;
+    vec2 id = floor(grid);
+    vec2 g_uv = fract(grid) - 0.5;
+    
+    float h = hash(id);
+    if (h > 0.94) {
+        // Randomize node position within cell
+        vec2 node_pos = vec2(hash(id + 1.0), hash(id + 2.0)) - 0.5;
+        float dist = length(g_uv - node_pos);
+        
+        // Pulsing glow
+        float pulse = 0.6 + 0.4 * sin(u_time * 0.8 + h * 10.0);
+        float size = 0.02 * h;
+        
+        // Mouse interaction
+        float m_dist = length(uv - mouse);
+        size *= (1.0 + 1.5 * exp(-m_dist * 8.0));
+        
+        // Glowing points
+        float flare = smoothstep(size, 0.0, dist);
+        vec3 nodeColor = mix(vec3(0.486, 0.435, 1.0), vec3(0.184, 0.878, 0.753), h); // Violet to Teal
+        color += flare * nodeColor * pulse * 0.8;
+        
+        // Faint threads to neighbors (simplified logic)
+        // In a real constellation, we'd check neighboring IDs, but for a background drift, 
+        // individual glowing nodes create the 'points' effect effectively.
+    }
+    
+    // Vignette for depth
+    color *= 1.0 - 0.4 * length(uv - 0.5);
+    
+    gl_FragColor = vec4(color, 1.0);
+}`;
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  // u_mouse is in pixel coordinates matching u_resolution (ShaderToy convention).
+  // Shaders that need normalized coords should use: u_mouse / u_resolution.
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+</div>
+<!-- STITCH_SHADER_END:ANIMATION_10 -->
+<!-- Top App Bar (Mobile) -->
+<header class="fixed top-0 w-full z-40 bg-surface/80 backdrop-blur-xl border-b border-white/10 flex justify-between items-center px-container-padding h-16">
+<button aria-label="Open Threads" class="p-2 text-outline hover:text-on-surface transition-colors" id="menu-btn">
+<span class="material-symbols-outlined text-body-lg">menu</span>
+</button>
+<div class="font-display text-headline-lg-mobile text-primary tracking-tight">Corpus</div>
+<button aria-label="New Chat" class="p-2 text-outline hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-body-lg">edit_square</span>
+</button>
+</header>
+<!-- Main Conversation Canvas -->
+<main class="absolute inset-0 z-10 pt-16 pb-32 px-container-padding overflow-y-auto hide-scrollbar flex flex-col gap-6">
+<!-- Welcome State (Visible if no messages, hiding for this mockup to show chat) -->
+<div class="hidden flex-col items-center justify-center h-full text-center mt-12">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 orb-glow">
+<span class="material-symbols-outlined text-display text-secondary-fixed">auto_awesome</span>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-2">How can I assist your research?</h1>
+<p class="font-body-md text-body-md text-outline">Query datasets, analyze threads, or synthesize archives.</p>
+</div>
+<!-- Chat History -->
+<div class="mt-8 flex flex-col gap-6">
+<!-- User Message -->
+<div class="self-end max-w-[85%]">
+<div class="bg-surface-container-highest px-4 py-3 rounded-xl rounded-tr-sm">
+<p class="font-body-md text-body-md text-on-surface">Can you cross-reference the Q3 dataset with the active threads on 'Agentic Logic'?</p>
+</div>
+</div>
+<!-- AI Response -->
+<div class="self-start max-w-[95%]">
+<div class="flex gap-3 mb-2 items-center">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<span class="font-label-mono text-label-mono text-primary">Corpus v2.4</span>
+</div>
+<div class="glass-panel p-4 rounded-xl rounded-tl-sm gradient-border-b space-y-4">
+<p class="font-body-md text-body-md text-on-surface">I've analyzed the Q3 dataset against 14 active threads tagged 'Agentic Logic'. Here are the primary intersections:</p>
+<!-- Source Chips -->
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 rounded bg-[#C1432E]/20 font-label-mono text-label-mono text-[#C1432E] border border-[#C1432E]/30 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">database</span> Q3_Metrics
+                        </span>
+<span class="px-2 py-1 rounded bg-surface-container-high font-label-mono text-label-mono text-outline flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">forum</span> Thread_A4
+                        </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">Key finding: Agent decision latency dropped 22% when operating within the constrained sandbox environments discussed in Thread A4.</p>
+</div>
+</div>
+<!-- AI Thinking State -->
+<div class="self-start max-w-[90%] mt-4">
+<div class="flex gap-3 items-center">
+<div class="w-6 h-6 rounded-full bg-secondary-fixed/20 flex items-center justify-center animate-pulse">
+<span class="material-symbols-outlined text-[14px] text-secondary-fixed" style="font-variation-settings: 'FILL' 1;">neurology</span>
+</div>
+<span class="font-label-mono text-label-mono text-secondary-fixed animate-pulse">Synthesizing node graphs...</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Input Area (Pinned) -->
+<div class="fixed bottom-0 left-0 w-full z-40 bg-gradient-to-t from-background via-background/90 to-transparent pt-12 pb-6 px-container-padding">
+<!-- Glowing Handle for Trace Sheet -->
+<div class="flex justify-center mb-3">
+<button class="group flex flex-col items-center gap-1 cursor-pointer" id="trace-handle">
+<span class="font-label-sm text-label-sm text-secondary-fixed/70 uppercase tracking-widest group-hover:text-secondary-fixed transition-colors">Agent Trace</span>
+<div class="w-12 h-1 rounded-full bg-secondary-fixed/50 group-hover:bg-secondary-fixed group-hover:orb-glow transition-all"></div>
+</button>
+</div>
+<!-- Input Pill -->
+<div class="glass-panel rounded-full flex items-center px-4 py-2 focus-within:shadow-[0_0_15px_rgba(88,251,218,0.15)] transition-shadow">
+<button class="p-2 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">attach_file</span>
+</button>
+<input class="flex-1 bg-transparent border-none text-on-surface font-body-md text-body-md placeholder:text-outline/70 focus:ring-0" placeholder="Ask Corpus..." type="text"/>
+<button class="p-2 text-primary hover:text-secondary-fixed transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<button class="p-2 ml-1 bg-surface-container-high rounded-full text-secondary-fixed hover:bg-secondary-fixed/20 transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">arrow_upward</span>
+</button>
+</div>
+</div>
+<!-- Left Drawer: Threads -->
+<div class="fixed inset-y-0 left-0 w-[85%] max-w-sm z-50 glass-panel border-r border-white/5 flex flex-col pt-16 pb-8" id="left-drawer">
+<!-- Header from JSON SideNavBar -->
+<div class="px-container-padding py-4 border-b border-white/5">
+<div class="font-display text-headline-lg-mobile text-primary">Corpus AI</div>
+<div class="font-label-mono text-label-mono text-outline mt-1">v2.4 Agentic</div>
+</div>
+<div class="flex-1 overflow-y-auto px-2 py-panel-gap space-y-1">
+<!-- JSON tab_labels logic applied contextually for mobile drawer -->
+<div class="px-4 py-2 mt-2 mb-1">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Navigation</span>
+</div>
+<!-- Inactive -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline hover:text-on-surface-variant hover:bg-white/5 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">biotech</span>
+<span class="font-body-md text-body-md">Research</span>
+</a>
+<!-- Active (Threads conceptually aligns with Archives for this view) -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container/20 text-secondary-fixed rounded-lg transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-body-md text-body-md">Archives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline hover:text-on-surface-variant hover:bg-white/5 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">database</span>
+<span class="font-body-md text-body-md">Datasets</span>
+</a>
+<div class="px-4 py-2 mt-6 mb-1 border-t border-white/5 pt-4">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Recent Threads</span>
+</div>
+<!-- Recent threads generic items -->
+<a class="flex flex-col px-4 py-3 rounded-lg text-outline hover:text-on-surface hover:bg-white/5 transition-all" href="#">
+<span class="font-body-md text-body-md text-on-surface truncate">Agentic Logic Analysis</span>
+<span class="font-label-mono text-label-mono text-outline/60 text-xs">2 hours ago</span>
+</a>
+<a class="flex flex-col px-4 py-3 rounded-lg text-outline hover:text-on-surface hover:bg-white/5 transition-all" href="#">
+<span class="font-body-md text-body-md truncate">Q3 Metrics Synthesis</span>
+<span class="font-label-mono text-label-mono text-outline/60 text-xs">Yesterday</span>
+</a>
+</div>
+<div class="px-4 pt-4 border-t border-white/5 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline hover:text-on-surface-variant hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</div>
+</div>
+<!-- Drawer Overlay -->
+<div class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity opacity-0" id="drawer-overlay"></div>
+<!-- Bottom Sheet: Agent Trace -->
+<div class="fixed inset-x-0 bottom-0 h-[663px] z-50 glass-panel rounded-t-3xl border-t border-white/10 flex flex-col shadow-[0_-20px_40px_rgba(0,0,0,0.5)]" id="bottom-sheet">
+<!-- Sheet Header -->
+<div class="flex flex-col items-center pt-3 pb-4 border-b border-white/5 px-container-padding sticky top-0 bg-surface-container-highest/80 backdrop-blur-md rounded-t-3xl z-10">
+<div class="w-12 h-1.5 rounded-full bg-outline/40 mb-4 cursor-pointer hover:bg-outline transition-colors" id="close-sheet"></div>
+<div class="w-full flex justify-between items-center">
+<h2 class="font-display text-headline-lg-mobile text-on-surface">Agent Trace</h2>
+<div class="flex items-center gap-2">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary-fixed opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-secondary-fixed"></span>
+</span>
+<span class="font-label-mono text-label-mono text-secondary-fixed">Active</span>
+</div>
+</div>
+</div>
+<!-- Trace Content -->
+<div class="flex-1 overflow-y-auto p-container-padding space-y-6 hide-scrollbar relative">
+<!-- Timeline Line -->
+<div class="absolute left-[35px] top-6 bottom-6 w-[1px] bg-white/10 z-0"></div>
+<!-- Trace Nodes -->
+<div class="relative z-10 flex gap-4">
+<div class="w-6 h-6 mt-1 rounded-full bg-surface-container-high border border-outline/30 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[14px] text-outline">search</span>
+</div>
+<div class="flex-1 space-y-1">
+<div class="font-label-mono text-label-mono text-outline">0.02s</div>
+<div class="font-body-md text-body-md text-on-surface">Query parsed. Identifying semantic intents.</div>
+</div>
+</div>
+<div class="relative z-10 flex gap-4">
+<div class="w-6 h-6 mt-1 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[14px] text-primary">database</span>
+</div>
+<div class="flex-1 space-y-2">
+<div class="font-label-mono text-label-mono text-outline">0.45s</div>
+<div class="font-body-md text-body-md text-on-surface">Accessing Data Store: Q3_Metrics</div>
+<div class="p-3 bg-surface-container-high rounded-lg font-label-mono text-label-mono text-outline-variant text-xs">
+                        SELECT * FROM metrics WHERE quarter = 'Q3' AND relevance &gt; 0.8
+                    </div>
+</div>
+</div>
+<div class="relative z-10 flex gap-4">
+<div class="w-6 h-6 mt-1 rounded-full bg-secondary-fixed/20 border border-secondary-fixed/50 flex items-center justify-center shrink-0 orb-glow">
+<span class="material-symbols-outlined text-[14px] text-secondary-fixed">neurology</span>
+</div>
+<div class="flex-1 space-y-1">
+<div class="font-label-mono text-label-mono text-secondary-fixed">1.12s (Current)</div>
+<div class="font-body-md text-body-md text-on-surface">Cross-referencing embeddings with Thread_A4. Processing 14 nodes.</div>
+</div>
+</div>
+<!-- Spacer for bottom padding -->
+<div class="h-8"></div>
+</div>
+</div>
+<script>
+        // Simple Interaction Logic
+        const menuBtn = document.getElementById('menu-btn');
+        const drawer = document.getElementById('left-drawer');
+        const overlay = document.getElementById('drawer-overlay');
+        
+        const traceHandle = document.getElementById('trace-handle');
+        const bottomSheet = document.getElementById('bottom-sheet');
+        const closeSheet = document.getElementById('close-sheet');
+
+        function toggleDrawer() {
+            const isOpen = drawer.classList.contains('open');
+            if (isOpen) {
+                drawer.classList.remove('open');
+                overlay.style.opacity = '0';
+                setTimeout(() => { overlay.classList.add('hidden'); }, 300);
+            } else {
+                overlay.classList.remove('hidden');
+                // trigger reflow
+                void overlay.offsetWidth;
+                overlay.style.opacity = '1';
+                drawer.classList.add('open');
+            }
+        }
+
+        function toggleSheet() {
+            bottomSheet.classList.toggle('open');
+            if(bottomSheet.classList.contains('open')) {
+                 overlay.classList.remove('hidden');
+                 void overlay.offsetWidth;
+                 overlay.style.opacity = '1';
+                 overlay.style.zIndex = '45'; // sit behind sheet, above main
+            } else {
+                 overlay.style.opacity = '0';
+                 setTimeout(() => { 
+                     overlay.classList.add('hidden'); 
+                     overlay.style.zIndex = '40'; // reset
+                 }, 300);
+            }
+        }
+
+        menuBtn.addEventListener('click', toggleDrawer);
+        overlay.addEventListener('click', () => {
+            if(drawer.classList.contains('open')) toggleDrawer();
+            if(bottomSheet.classList.contains('open')) toggleSheet();
+        });
+        
+        traceHandle.addEventListener('click', toggleSheet);
+        closeSheet.addEventListener('click', toggleSheet);
+
+    </script>
+</body></html>

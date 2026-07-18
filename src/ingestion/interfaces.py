@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 
 class PaperMetadata(ABC):
@@ -23,7 +22,7 @@ class PaperMetadata(ABC):
 
     @property
     @abstractmethod
-    def authors(self) -> List[str]:
+    def authors(self) -> list[str]:
         """Authors list."""
         pass
 
@@ -41,7 +40,7 @@ class PaperMetadata(ABC):
 
     @property
     @abstractmethod
-    def categories(self) -> List[str]:
+    def categories(self) -> list[str]:
         """Associated subject categories."""
         pass
 
@@ -60,14 +59,14 @@ class PaperSource(ABC):
         self,
         category: str,
         limit: int = 50,
-        from_date: Optional[datetime] = None,
-        to_date: Optional[datetime] = None,
-    ) -> List[PaperMetadata]:
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> list[PaperMetadata]:
         """Fetch metadata for recent papers from the source."""
         pass
 
     @abstractmethod
-    async def fetch_by_id(self, paper_id: str) -> Optional[PaperMetadata]:
+    async def fetch_by_id(self, paper_id: str) -> PaperMetadata | None:
         """Fetch a single paper by its source-specific ID (e.g. arXiv ID)."""
         pass
 

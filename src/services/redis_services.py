@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -30,7 +30,7 @@ class RedisServicesManager:
 
     # ─── 1. Conversation / Session Memory ──────────────────────────
 
-    async def get_session_history(self, session_id: str) -> List[Dict[str, str]]:
+    async def get_session_history(self, session_id: str) -> list[dict[str, str]]:
         """Fetch session conversation history."""
         key = f"corpus:session:{session_id}"
         try:
@@ -41,9 +41,7 @@ class RedisServicesManager:
             logger.error(f"Redis get_session_history failed for {session_id}: {e}")
         return []
 
-    async def save_session_history(
-        self, session_id: str, history: List[Dict[str, str]], ttl_hours: int = 6
-    ) -> None:
+    async def save_session_history(self, session_id: str, history: list[dict[str, str]], ttl_hours: int = 6) -> None:
         """Persist session conversation history."""
         key = f"corpus:session:{session_id}"
         try:
@@ -57,23 +55,25 @@ class RedisServicesManager:
 
     # ─── 2. Semantic Cache ──────────────────────────────────────────
 
-    async def get_semantic_cache(
-        self, query_embedding: List[float], threshold: float = 0.96
-    ) -> Optional[Dict[str, Any]]:
+    async def get_semantic_cache(self, query_embedding: list[float], threshold: float = 0.96) -> dict[str, Any] | None:
         """Find a cached response with query embedding similarity above threshold.
 
         Calculates cosine similarity locally in Python over cached keys.
         """
         try:
-            # Get list of all cache keys
-            keys = await self.redis.keys("corpus:semcache:*")
+            # SCAN (not KEYS — O(N) blocking) and cap entries considered per lookup
+            keys = []
+            async for key in self.redis.scan_iter(match="corpus:semcache:*", count=100):
+                keys.append(key)
+                if len(keys) >= 200:
+                    break
             if not keys:
                 return None
 
             import math
 
-            def cosine_similarity(v1: List[float], v2: List[float]) -> float:
-                dot_product = sum(x * y for x, y in zip(v1, v2))
+            def cosine_similarity(v1: list[float], v2: list[float]) -> float:
+                dot_product = sum(x * y for x, y in zip(v1, v2, strict=True))
                 norm1 = math.sqrt(sum(x * x for x in v1))
                 norm2 = math.sqrt(sum(x * x for x in v2))
                 if norm1 == 0 or norm2 == 0:
@@ -110,12 +110,13 @@ class RedisServicesManager:
     async def set_semantic_cache(
         self,
         query: str,
-        query_embedding: List[float],
-        response: Dict[str, Any],
+        query_embedding: list[float],
+        response: dict[str, Any],
         ttl_hours: int = 6,
     ) -> None:
         """Store response in semantic cache mapped to query embedding."""
         import uuid
+
         cache_id = str(uuid.uuid4())
         key = f"corpus:semcache:{cache_id}"
 
@@ -140,7 +141,7 @@ class RedisServicesManager:
 
     async def check_rate_limit(
         self, client_id: str, max_requests: int = 30, window_seconds: int = 60
-    ) -> Tuple[bool, int]:
+    ) -> tuple[bool, int]:
         """Check rate limit using sliding window.
 
         Returns (is_allowed, retry_after_seconds)

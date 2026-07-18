@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any, Dict
-
 # Mappings for layout-aware chunked documents with 1024-dimension KNN Jina v4 embeddings
 OPENSEARCH_CHUNKS_MAPPING = {
     "settings": {

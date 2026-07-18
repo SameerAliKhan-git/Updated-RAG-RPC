@@ -5,6 +5,29 @@ from __future__ import annotations
 import pytest
 
 
+def _ollama_reachable() -> bool:
+    import httpx
+
+    from src.config import get_settings
+
+    try:
+        resp = httpx.get(f"{get_settings().ollama.host}/api/tags", timeout=2.0)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def pytest_collection_modifyitems(config, items):
+    """Auto-skip requires_ollama tests when no Ollama server is reachable."""
+    marked = [item for item in items if item.get_closest_marker("requires_ollama")]
+    if not marked:
+        return
+    if not _ollama_reachable():
+        skip = pytest.mark.skip(reason="Ollama server not reachable")
+        for item in marked:
+            item.add_marker(skip)
+
+
 @pytest.fixture
 def app_settings():
     """Provide test settings with defaults overridden for testing."""

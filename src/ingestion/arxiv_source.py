@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional
 from urllib.parse import quote, urlencode
 
 import httpx
 from dateutil import parser as date_parser
+
 from src.config import get_settings
 from src.ingestion.interfaces import PaperMetadata, PaperSource
+from src.services.resilience import arxiv_circuit_breaker, with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,10 @@ class ArxivPaperMetadata(PaperMetadata):
         self,
         paper_id: str,
         title: str,
-        authors: List[str],
+        authors: list[str],
         abstract: str,
         published_date: datetime,
-        categories: List[str],
+        categories: list[str],
         pdf_url: str,
     ):
         self._paper_id = paper_id
@@ -48,7 +48,7 @@ class ArxivPaperMetadata(PaperMetadata):
         return self._title
 
     @property
-    def authors(self) -> List[str]:
+    def authors(self) -> list[str]:
         return self._authors
 
     @property
@@ -60,7 +60,7 @@ class ArxivPaperMetadata(PaperMetadata):
         return self._published_date
 
     @property
-    def categories(self) -> List[str]:
+    def categories(self) -> list[str]:
         return self._categories
 
     @property
@@ -79,8 +79,8 @@ class ArxivPaperSource(PaperSource):
 
     def __init__(self):
         self.settings = get_settings()
-        self._last_request_time: Optional[float] = None
-        self._client: Optional[httpx.AsyncClient] = None
+        self._last_request_time: float | None = None
+        self._client: httpx.AsyncClient | None = None
         self._lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -99,13 +99,15 @@ class ArxivPaperSource(PaperSource):
                     await asyncio.sleep(delay - elapsed)
             self._last_request_time = time.monotonic()
 
+    @arxiv_circuit_breaker
+    @with_retry(max_attempts=3, exceptions=(httpx.HTTPError, TimeoutError, ConnectionError))
     async def fetch_recent_papers(
         self,
         category: str,
         limit: int = 50,
-        from_date: Optional[datetime] = None,
-        to_date: Optional[datetime] = None,
-    ) -> List[PaperMetadata]:
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> list[PaperMetadata]:
         """Fetch matching paper entries from arXiv."""
         query = f"cat:{category}"
         if from_date or to_date:
@@ -134,7 +136,9 @@ class ArxivPaperSource(PaperSource):
 
         return self._parse_feed(resp.text)
 
-    async def fetch_by_id(self, arxiv_id: str) -> Optional[PaperMetadata]:
+    @arxiv_circuit_breaker
+    @with_retry(max_attempts=3, exceptions=(httpx.HTTPError, TimeoutError, ConnectionError))
+    async def fetch_by_id(self, arxiv_id: str) -> PaperMetadata | None:
         """Fetch paper by direct ID list."""
         params = {"id_list": arxiv_id}
         query_string = urlencode(params)
@@ -148,16 +152,16 @@ class ArxivPaperSource(PaperSource):
         papers = self._parse_feed(resp.text)
         return papers[0] if papers else None
 
-    def _parse_feed(self, xml_content: str) -> List[PaperMetadata]:
+    def _parse_feed(self, xml_content: str) -> list[PaperMetadata]:
         """Parse XML atom entries."""
         try:
             root = ET.fromstring(xml_content)
-        except ET.ParseError as e:
+        except ET.ParseError:
             logger.error("Failed to parse arXiv Atom XML response", exc_info=True)
             return []
 
         entries = root.findall("atom:entry", self.NAMESPACES)
-        papers: List[PaperMetadata] = []
+        papers: list[PaperMetadata] = []
 
         for entry in entries:
             # ID
@@ -172,11 +176,17 @@ class ArxivPaperSource(PaperSource):
 
             # Abstract
             abstract_elem = entry.find("atom:summary", self.NAMESPACES)
-            abstract = abstract_elem.text.strip().replace("\n", " ") if (abstract_elem is not None and abstract_elem.text) else ""
+            abstract = (
+                abstract_elem.text.strip().replace("\n", " ")
+                if (abstract_elem is not None and abstract_elem.text)
+                else ""
+            )
 
             # Published Date
             pub_elem = entry.find("atom:published", self.NAMESPACES)
-            published_date = date_parser.parse(pub_elem.text) if (pub_elem is not None and pub_elem.text) else datetime.now(timezone.utc)
+            published_date = (
+                date_parser.parse(pub_elem.text) if (pub_elem is not None and pub_elem.text) else datetime.now(UTC)
+            )
 
             # Authors
             authors = []
@@ -235,7 +245,7 @@ class ArxivPaperSource(PaperSource):
         for attempt in range(max_attempts):
             await self._throttle()
             try:
-                logger.info(f"Downloading PDF (attempt {attempt+1}/{max_attempts}) from: {url}")
+                logger.info(f"Downloading PDF (attempt {attempt + 1}/{max_attempts}) from: {url}")
                 async with client.stream("GET", url) as response:
                     response.raise_for_status()
                     with open(pdf_path, "wb") as f:
@@ -244,14 +254,14 @@ class ArxivPaperSource(PaperSource):
                 logger.info(f"Successfully downloaded PDF to: {pdf_path}")
                 return pdf_path
             except Exception as e:
-                logger.warning(f"Failed download attempt {attempt+1} due to error: {e}")
+                logger.warning(f"Failed download attempt {attempt + 1} due to error: {e}")
                 if pdf_path.exists():
                     pdf_path.unlink()
                 if attempt == max_attempts - 1:
-                    raise IOError(f"Failed downloading PDF from {url} after {max_attempts} attempts.") from e
+                    raise OSError(f"Failed downloading PDF from {url} after {max_attempts} attempts.") from e
                 await asyncio.sleep(2.0 * (attempt + 1))
 
-        raise IOError(f"Could not download PDF from: {url}")
+        raise OSError(f"Could not download PDF from: {url}")
 
     async def close(self) -> None:
         """Teardown reusable clients."""

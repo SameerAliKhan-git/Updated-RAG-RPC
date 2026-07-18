@@ -38,6 +38,7 @@ def setup_opensearch_indices(client: OpenSearch) -> None:
         client: Connected OpenSearch client instance.
     """
     import structlog
+
     from src.config import get_settings
     from src.db.opensearch_mapping import OPENSEARCH_CHUNKS_MAPPING, OPENSEARCH_RRF_PIPELINE
 
@@ -64,4 +65,3 @@ def setup_opensearch_indices(client: OpenSearch) -> None:
     except Exception as e:
         logger.error("opensearch.index.failed", index=index_name, error=str(e))
         raise
-

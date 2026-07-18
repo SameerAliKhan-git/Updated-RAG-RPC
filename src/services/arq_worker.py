@@ -6,7 +6,6 @@ triggered by user queries for unindexed papers.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -21,9 +20,7 @@ from src.db.opensearch import create_opensearch_client
 from src.db.postgres import create_engine_and_session
 from src.ingestion.orchestrator import IngestionOrchestrator
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

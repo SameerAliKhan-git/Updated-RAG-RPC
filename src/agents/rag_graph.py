@@ -19,22 +19,28 @@ import json
 import logging
 import re
 import uuid
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 
 from src.agents.prompts import (
     GAP_RESPONSE_TEMPLATE,
-    GENERATOR_PROMPT,
+    GENERATOR_SYSTEM_PROMPT,
+    GENERATOR_USER_PROMPT,
     GRADER_PROMPT,
     PLANNER_PROMPT,
     REWRITER_PROMPT,
     ROUTER_PROMPT,
     VERIFIER_PROMPT,
 )
-from src.retrieval.context_builder import CitationMeta, build_citation_context
-from src.services.llm_adapter import call_drafting_llm, call_reasoning_llm, parse_json_response
+from src.retrieval.context_builder import build_citation_context
+from src.services.llm_adapter import (
+    call_drafting_llm,
+    call_fast_llm,
+    call_reasoning_llm,
+    parse_json_response,
+    stream_drafting_llm,
+)
 from src.services.tracing import trace_node
 
 logger = logging.getLogger(__name__)
@@ -49,38 +55,44 @@ class AgentState(TypedDict, total=False):
     # Input
     query: str
     session_id: str
-    conversation_history: List[Dict[str, str]]
+    conversation_history: list[dict[str, str]]
 
     # Routing
     query_type: str  # casual, simple, complex, followup
 
     # Planning
-    sub_questions: List[str]
+    sub_questions: list[str]
 
     # Retrieval
-    all_retrieved_chunks: List[Any]  # List[RetrievedChunk]
-    relevant_chunks: List[Any]
-    reranked_chunks: List[Any]
+    all_retrieved_chunks: list[Any]  # List[RetrievedChunk]
+    relevant_chunks: list[Any]
+    reranked_chunks: list[Any]
 
     # Context
     context_str: str
-    citation_meta: List[Dict[str, Any]]
-    chunk_ids_in_context: List[str]
+    citation_meta: list[dict[str, Any]]
+    chunk_ids_in_context: list[str]
 
     # Generation
     answer_markdown: str
-    citations: List[Dict[str, Any]]
+    citations: list[dict[str, Any]]
     grounding_note: str
 
     # Control
     retry_count: int
     max_retries: int
     current_query: str  # May be rewritten
-    trace_events: List[str]
+    trace_events: list[str]
     error: str
+    filters: dict[str, Any]
+    generation_retry_count: int
+    generation_feedback: str
 
     # Tools reference (set at graph invocation, not serialized)
     toolkit: Any
+
+    # Optional live-event callback (set for streaming invocations, not serialized)
+    emit: Any
 
 
 # ─── Node Implementations ─────────────────────────────────────────
@@ -88,7 +100,7 @@ class AgentState(TypedDict, total=False):
 
 @trace_node("intake_and_route")
 async def intake_and_route(state: AgentState) -> AgentState:
-    """Node 1: Classify the query type."""
+    """Node 1: Classify the query type and extract metadata filters."""
     _emit(state, "classifying query...")
 
     query = state["query"]
@@ -96,7 +108,7 @@ async def intake_and_route(state: AgentState) -> AgentState:
     history_str = json.dumps(history[-3:]) if history else "[]"
 
     prompt = ROUTER_PROMPT.format(query=query, history=history_str)
-    response = await call_reasoning_llm(
+    response = await call_fast_llm(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
         max_tokens=256,
@@ -107,7 +119,13 @@ async def intake_and_route(state: AgentState) -> AgentState:
     if query_type not in ("casual", "simple", "complex", "followup"):
         query_type = "simple"
 
-    _emit(state, f"query classified as: {query_type}")
+    # Merge LLM-extracted filters with request-level filters — the caller's
+    # explicit filters (e.g. an attached PDF's arxiv_id) always win.
+    filters = {k: v for k, v in parsed.get("filters", {}).items() if v}
+    request_filters = {k: v for k, v in (state.get("filters") or {}).items() if v}
+    filters.update(request_filters)
+    if filters:
+        _emit(state, f"active metadata filters: {filters}")
 
     return {
         **state,
@@ -115,6 +133,9 @@ async def intake_and_route(state: AgentState) -> AgentState:
         "current_query": query,
         "retry_count": state.get("retry_count", 0),
         "max_retries": 2,
+        "filters": filters,
+        "generation_retry_count": state.get("generation_retry_count", 0),
+        "generation_feedback": state.get("generation_feedback", ""),
         "trace_events": state.get("trace_events", []),
     }
 
@@ -165,7 +186,7 @@ async def retrieve(state: AgentState) -> AgentState:
     all_chunks = []
     for q in queries:
         if toolkit:
-            chunks = await toolkit.hybrid_search(q, top_k=15)
+            chunks = await toolkit.hybrid_search(q, top_k=15, filters=state.get("filters", {}))
         else:
             chunks = []
         all_chunks.extend(chunks)
@@ -189,7 +210,11 @@ async def grade(state: AgentState) -> AgentState:
 
     _emit(state, f"grading {len(chunks)} chunks for relevance...")
 
-    candidate_chunks = chunks[:20]  # Cap grading at 20 chunks for latency
+    from src.config import get_settings
+
+    # Cap grading for latency — each graded chunk is one LLM call, and on
+    # CPU-only Ollama concurrent calls serialize.
+    candidate_chunks = chunks[: get_settings().grading_max_chunks]
 
     async def grade_single_chunk(chunk):
         prompt = GRADER_PROMPT.format(
@@ -199,7 +224,7 @@ async def grade(state: AgentState) -> AgentState:
             chunk_text=getattr(chunk, "text", "")[:1500],
         )
         try:
-            response = await call_reasoning_llm(
+            response = await call_fast_llm(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=256,
@@ -256,7 +281,7 @@ async def rewrite_query(state: AgentState) -> AgentState:
         num_total=len(all_chunks),
     )
 
-    response = await call_reasoning_llm(
+    response = await call_fast_llm(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
         max_tokens=256,
@@ -307,18 +332,20 @@ async def live_arxiv_lookup(state: AgentState) -> AgentState:
                 f"Abstract:\n{paper['abstract'][:500]}\n"
                 f"--- End Source [{idx}] ---\n"
             )
-            citations.append({
-                "citation_id": idx,
-                "chunk_id": f"live_{paper['arxiv_id']}",
-                "paper_title": paper["title"],
-                "authors": paper["authors"],
-                "arxiv_id": paper["arxiv_id"],
-                "arxiv_url": paper["arxiv_url"],
-                "pdf_url": paper["pdf_url"],
-                "section": "Abstract (live lookup)",
-                "chunk_type": "abstract",
-                "snippet": paper["abstract"][:200],
-            })
+            citations.append(
+                {
+                    "citation_id": idx,
+                    "chunk_id": f"live_{paper['arxiv_id']}",
+                    "paper_title": paper["title"],
+                    "authors": paper["authors"],
+                    "arxiv_id": paper["arxiv_id"],
+                    "arxiv_url": paper["arxiv_url"],
+                    "pdf_url": paper["pdf_url"],
+                    "section": "Abstract (live lookup)",
+                    "chunk_type": "abstract",
+                    "snippet": paper["abstract"][:200],
+                }
+            )
 
         return {
             **state,
@@ -396,23 +423,59 @@ async def build_context(state: AgentState) -> AgentState:
 
     _emit(state, "building citation-tagged context...")
 
+    # Parent-Child Semantic Expansion: Expand child chunks to parent section text
+    toolkit = state.get("toolkit")
+    if toolkit and toolkit.db_session:
+        from src.models.paper import Chunk as DBChunk
+        for chunk in reranked:
+            try:
+                db_chunk = toolkit.db_session.query(DBChunk).filter(DBChunk.chunk_id == chunk.chunk_id).first()
+                if db_chunk:
+                    siblings = (
+                        toolkit.db_session.query(DBChunk)
+                        .filter(
+                            DBChunk.paper_id == db_chunk.paper_id,
+                            DBChunk.section_title == db_chunk.section_title
+                        )
+                        .all()
+                    )
+                    if siblings:
+                        # Sort sequentially using created_at (stable sort preserves insertion order)
+                        siblings_sorted = sorted(siblings, key=lambda x: x.created_at or 0)
+                        parent_text = "\n\n".join(s.text for s in siblings_sorted)
+                        # Cap expanded context — whole sections can be enormous, and
+                        # prompt prefill cost scales linearly with context length.
+                        if len(parent_text) > 4000:
+                            marker = chunk.text[:200]
+                            pos = parent_text.find(marker)
+                            start = max(0, pos - 1500) if pos >= 0 else 0
+                            parent_text = parent_text[start : start + 4000]
+                        chunk.text = parent_text
+            except Exception as ex:
+                logger.error(f"Failed to expand chunk {chunk.chunk_id} to parent context: {ex}")
+
     ctx = build_citation_context(reranked, max_chunks=4)
 
     # Convert CitationMeta dataclasses to dicts for serialization
     citation_dicts = []
     for cm in ctx.citations:
-        citation_dicts.append({
-            "citation_id": cm.citation_id,
-            "chunk_id": cm.chunk_id,
-            "paper_title": cm.paper_title,
-            "authors": cm.authors,
-            "arxiv_id": cm.arxiv_id,
-            "arxiv_url": cm.arxiv_url,
-            "pdf_url": cm.pdf_url,
-            "section": cm.section,
-            "chunk_type": cm.chunk_type,
-            "snippet": cm.snippet,
-        })
+        citation_dicts.append(
+            {
+                "citation_id": cm.citation_id,
+                "chunk_id": cm.chunk_id,
+                "paper_title": cm.paper_title,
+                "authors": cm.authors,
+                "arxiv_id": cm.arxiv_id,
+                "arxiv_url": cm.arxiv_url,
+                "pdf_url": cm.pdf_url,
+                "section": cm.section,
+                "chunk_type": cm.chunk_type,
+                "snippet": cm.snippet,
+                "score": cm.score,
+                "published_date": cm.published_date,
+                "categories": cm.categories,
+            }
+        )
 
     return {
         **state,
@@ -431,14 +494,38 @@ async def generate(state: AgentState) -> AgentState:
     if not context or context == "No relevant sources found.":
         return {**state, "answer_markdown": "No sources available to answer this question."}
 
-    _emit(state, "generating answer with citations...")
+    feedback = state.get("generation_feedback", "")
+    retry_num = state.get("generation_retry_count", 0)
 
-    prompt = GENERATOR_PROMPT.format(context=context, query=query)
-    answer = await call_drafting_llm(
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=4096,
-    )
+    if feedback:
+        _emit(state, f"regenerating answer with correction feedback (attempt {retry_num})...")
+        feedback_block = f"\n### Verification Feedback (Fix the following issues in this rewrite):\n{feedback}"
+    else:
+        _emit(state, "generating answer with citations...")
+        feedback_block = ""
+
+    system_prompt = GENERATOR_SYSTEM_PROMPT
+    user_content = GENERATOR_USER_PROMPT.format(context=context, query=query, feedback_block=feedback_block)
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content}
+    ]
+
+    from src.config import get_settings
+
+    max_tokens = get_settings().generation_max_tokens
+
+    # True token streaming: push each LLM token live while accumulating the full
+    # answer for downstream verification. Regeneration retries are not streamed —
+    # the verified answer arrives in the final `done` payload.
+    if state.get("emit") is not None and retry_num == 0:
+        parts: list[str] = []
+        async for token in stream_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens):
+            parts.append(token)
+            _emit_live(state, {"type": "token", "text": token})
+        answer = "".join(parts)
+    else:
+        answer = await call_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens)
 
     _emit(state, "answer generated")
 
@@ -476,8 +563,13 @@ async def verify_citations(state: AgentState) -> AgentState:
         logger.warning(f"Stripped invented citation [{inv}] from answer")
 
     # Step 2: LLM-based faithfulness check
-    import os
-    enable_llm_verify = os.getenv("ENABLE_LLM_VERIFICATION", "false").lower() == "true"
+    from src.config import get_settings
+
+    enable_llm_verify = get_settings().enable_llm_verification
+
+    # Always initialize feedback
+    generation_feedback = ""
+    retry_num = state.get("generation_retry_count", 0)
 
     if not enable_llm_verify:
         grounding_note = f"{len(cited_nums - invalid_nums)} citations verified"
@@ -486,6 +578,7 @@ async def verify_citations(state: AgentState) -> AgentState:
             **state,
             "answer_markdown": cleaned_answer,
             "grounding_note": grounding_note,
+            "generation_feedback": "",
         }
 
     try:
@@ -497,26 +590,39 @@ async def verify_citations(state: AgentState) -> AgentState:
         )
         parsed = parse_json_response(response)
 
-        grounding_note = parsed.get(
-            "grounding_note",
-            f"{len(cited_nums - invalid_nums)} citations used"
-        )
+        grounding_note = parsed.get("grounding_note", f"{len(cited_nums - invalid_nums)} citations used")
 
         # Process issues — strip or hedge problematic claims
         issues = parsed.get("issues", [])
+        feedback_list = []
         for issue in issues:
             action = issue.get("action", "keep")
             claim_text = issue.get("claim", "")
             if action == "remove" and claim_text and claim_text in cleaned_answer:
                 cleaned_answer = cleaned_answer.replace(
-                    claim_text,
-                    f"~~{claim_text}~~ *(removed: unsupported by source)*"
+                    claim_text, f"~~{claim_text}~~ *(removed: unsupported by source)*"
+                )
+                feedback_list.append(
+                    f"- Citation {issue.get('citation', '')} for claim '{claim_text}' "
+                    f"was flagged: {issue.get('issue', '')} (Action: remove)"
                 )
             elif action == "hedge" and claim_text and claim_text in cleaned_answer:
-                cleaned_answer = cleaned_answer.replace(
-                    claim_text,
-                    f"*[note: source partially supports]* {claim_text}"
+                cleaned_answer = cleaned_answer.replace(claim_text, f"*[note: source partially supports]* {claim_text}")
+                feedback_list.append(
+                    f"- Citation {issue.get('citation', '')} for claim '{claim_text}' "
+                    f"was flagged: {issue.get('issue', '')} (Action: hedge)"
                 )
+
+        if feedback_list and retry_num < 2:
+            generation_feedback = (
+                "Please address the following citation issues in the rewrite:\n"
+                + "\n".join(feedback_list)
+            )
+            # Increment retry count for the next iteration
+            retry_num += 1
+            _emit(state, f"citations verification flagged issues; queueing self-correction retry {retry_num}")
+        else:
+            generation_feedback = ""
 
     except Exception as e:
         logger.error(f"Citation verification failed: {e}")
@@ -528,6 +634,8 @@ async def verify_citations(state: AgentState) -> AgentState:
         **state,
         "answer_markdown": cleaned_answer,
         "grounding_note": grounding_note,
+        "generation_retry_count": retry_num,
+        "generation_feedback": generation_feedback,
     }
 
 
@@ -546,16 +654,21 @@ async def finalize(state: AgentState) -> AgentState:
     final_citations = []
     for cm in citation_meta:
         if cm["citation_id"] in used_nums:
-            final_citations.append({
-                "id": cm["citation_id"],
-                "paper_title": cm["paper_title"],
-                "authors": cm["authors"],
-                "arxiv_id": cm["arxiv_id"],
-                "arxiv_url": cm["arxiv_url"],
-                "pdf_url": cm["pdf_url"],
-                "section": cm["section"],
-                "snippet": cm["snippet"],
-            })
+            final_citations.append(
+                {
+                    "id": cm["citation_id"],
+                    "paper_title": cm["paper_title"],
+                    "authors": cm["authors"],
+                    "arxiv_id": cm["arxiv_id"],
+                    "arxiv_url": cm["arxiv_url"],
+                    "pdf_url": cm["pdf_url"],
+                    "section": cm["section"],
+                    "snippet": cm["snippet"],
+                    "score": cm.get("score", 0.0),
+                    "published_date": cm.get("published_date", ""),
+                    "categories": cm.get("categories", []),
+                }
+            )
 
     # Sort by ID for consistent ordering
     final_citations.sort(key=lambda c: c["id"])
@@ -570,12 +683,14 @@ async def finalize(state: AgentState) -> AgentState:
 
 @trace_node("update_memory")
 async def update_memory(state: AgentState) -> AgentState:
-    """Node 14: Persist session state to Redis for multi-turn follow-ups."""
+    """Node 14: Persist session state to Redis for follow-ups and extract long-term graph memory."""
     toolkit = state.get("toolkit")
     session_id = state.get("session_id", "")
     query = state["query"]
     answer = state.get("answer_markdown", "")
+    query_type = state.get("query_type", "simple")
 
+    # 1. Update Short-term Redis Memory
     if toolkit and toolkit.redis and session_id:
         try:
             history = state.get("conversation_history", [])
@@ -596,6 +711,101 @@ async def update_memory(state: AgentState) -> AgentState:
         except Exception as e:
             logger.warning(f"Failed to update session memory: {e}")
 
+    # 2. Extract & Save Long-term Memory Graph in PostgreSQL
+    if toolkit and toolkit.db_session and session_id and query_type != "casual":
+        _emit(state, "extracting long-term memory graph concepts...")
+        try:
+            from src.models.paper import MemoryEdge as DBMemoryEdge
+            from src.models.paper import MemoryNode as DBMemoryNode
+
+            # Run LLM extraction
+            extraction_prompt = (
+                "You are an AI memory graph extractor.\n"
+                "Extract the primary research topics or entities that the user is investigating.\n"
+                "Respond in valid JSON format:\n"
+                "{\n"
+                '    "topics": [\n'
+                '        {"name": "<topic>", "score": <relevance float 0.0 to 1.0>}\n'
+                "    ]\n"
+                "}\n\n"
+                f"User Query: {query}\n"
+                f"Assistant Answer Snippet: {answer[:300]}"
+            )
+            # Topic tagging is low-stakes — use the fast model to keep the
+            # end-of-turn latency down.
+            llm_response = await call_fast_llm(
+                messages=[{"role": "user", "content": extraction_prompt}],
+                temperature=0.0,
+                max_tokens=256,
+            )
+            parsed = parse_json_response(llm_response)
+            topics = parsed.get("topics", [])
+
+            if topics:
+                # Get or create User/Session Root node
+                user_node = toolkit.db_session.query(DBMemoryNode).filter(
+                    DBMemoryNode.session_id == session_id,
+                    DBMemoryNode.label == "User"
+                ).first()
+                if not user_node:
+                    user_node = DBMemoryNode(
+                        session_id=session_id,
+                        label="User",
+                        properties={"session_id": session_id}
+                    )
+                    toolkit.db_session.add(user_node)
+                    toolkit.db_session.commit()
+                    toolkit.db_session.refresh(user_node)
+
+                for t in topics:
+                    t_name = t.get("name", "").strip().lower()
+                    t_score = t.get("score", 0.8)
+                    if not t_name:
+                        continue
+
+                    # Get all Topic Nodes for this session
+                    topic_nodes = toolkit.db_session.query(DBMemoryNode).filter(
+                        DBMemoryNode.session_id == session_id,
+                        DBMemoryNode.label == "Topic"
+                    ).all()
+                    
+                    topic_node = next((n for n in topic_nodes if n.properties.get("name") == t_name), None)
+
+                    if not topic_node:
+                        topic_node = DBMemoryNode(
+                            session_id=session_id,
+                            label="Topic",
+                            properties={"name": t_name, "score": t_score}
+                        )
+                        toolkit.db_session.add(topic_node)
+                        toolkit.db_session.commit()
+                        toolkit.db_session.refresh(topic_node)
+                    else:
+                        # Update properties/score
+                        props = dict(topic_node.properties)
+                        props["score"] = max(props.get("score", 0.0), t_score)
+                        topic_node.properties = props
+                        toolkit.db_session.commit()
+
+                    # Create directed Interest Edge
+                    edge = toolkit.db_session.query(DBMemoryEdge).filter(
+                        DBMemoryEdge.source_id == user_node.id,
+                        DBMemoryEdge.target_id == topic_node.id
+                    ).first()
+
+                    if not edge:
+                        edge = DBMemoryEdge(
+                            source_id=user_node.id,
+                            target_id=topic_node.id,
+                            relation="INTERESTED_IN"
+                        )
+                        toolkit.db_session.add(edge)
+                        toolkit.db_session.commit()
+
+                _emit(state, f"long-term memory graph updated with {len(topics)} topics")
+        except Exception as e:
+            logger.warning(f"Failed to update long-term graph memory: {e}", exc_info=True)
+
     return state
 
 
@@ -606,7 +816,13 @@ async def handle_casual(state: AgentState) -> AgentState:
 
     response = await call_drafting_llm(
         messages=[
-            {"role": "system", "content": "You are Corpus, a research paper assistant. Respond helpfully to casual messages. Be brief."},
+            {
+                "role": "system",
+                "content": (
+                    "You are Corpus, a research paper assistant. "
+                    "Respond helpfully to casual messages. Be brief."
+                ),
+            },
             {"role": "user", "content": state["query"]},
         ],
         temperature=0.5,
@@ -625,11 +841,23 @@ async def handle_casual(state: AgentState) -> AgentState:
 
 
 def _emit(state: AgentState, message: str) -> None:
-    """Append a trace event for SSE streaming."""
+    """Append a trace event, and push it live when a streaming callback is attached."""
     events = state.get("trace_events", [])
     events.append(message)
     state["trace_events"] = events
+    _emit_live(state, {"type": "trace", "step": message})
     logger.info(f"[agent] {message}")
+
+
+def _emit_live(state: AgentState, event: dict[str, Any]) -> None:
+    """Push an event to the live streaming callback, if one is attached."""
+    emit = state.get("emit")
+    if emit is None:
+        return
+    try:
+        emit(event)
+    except Exception as e:
+        logger.warning(f"Live emit failed: {e}")
 
 
 # ─── Router Functions ──────────────────────────────────────────────
@@ -649,6 +877,16 @@ def route_after_intake(state: AgentState) -> str:
 def route_after_admit_or_live(state: AgentState) -> str:
     """After live lookup or admit gap, go to update_memory."""
     return "update_memory"
+
+
+def route_after_verification(state: AgentState) -> str:
+    """Route after verify_citations — loop back to generate if we have correction feedback and retries remaining."""
+    feedback = state.get("generation_feedback", "")
+    retry_count = state.get("generation_retry_count", 0)
+
+    if feedback and retry_count < 2:
+        return "generate"
+    return "finalize"
 
 
 # ─── Graph Construction ───────────────────────────────────────────
@@ -731,7 +969,14 @@ def build_agentic_graph() -> StateGraph:
     graph.add_edge("rerank", "build_context")
     graph.add_edge("build_context", "generate")
     graph.add_edge("generate", "verify_citations")
-    graph.add_edge("verify_citations", "finalize")
+    graph.add_conditional_edges(
+        "verify_citations",
+        route_after_verification,
+        {
+            "generate": "generate",
+            "finalize": "finalize",
+        },
+    )
     graph.add_edge("finalize", "update_memory")
     graph.add_edge("update_memory", END)
 
@@ -757,25 +1002,16 @@ def get_agentic_graph():
     return _graph
 
 
-async def ask_corpus(
+def _build_initial_state(
     query: str,
-    toolkit=None,
-    session_id: Optional[str] = None,
-    conversation_history: Optional[List[Dict[str, str]]] = None,
-) -> Dict[str, Any]:
-    """Run the full agentic RAG pipeline for a query.
-
-    Returns:
-        {
-            "answer_markdown": str,
-            "citations": [...],
-            "grounding_note": str,
-            "trace_events": [str, ...]
-        }
-    """
-    graph = get_agentic_graph()
-
-    initial_state: AgentState = {
+    toolkit,
+    session_id: str | None,
+    conversation_history: list[dict[str, str]] | None,
+    filters: dict[str, Any] | None,
+    emit=None,
+) -> AgentState:
+    """Assemble the initial graph state shared by streaming and non-streaming entry points."""
+    return {
         "query": query,
         "session_id": session_id or str(uuid.uuid4()),
         "conversation_history": conversation_history or [],
@@ -796,7 +1032,42 @@ async def ask_corpus(
         "trace_events": [],
         "error": "",
         "toolkit": toolkit,
+        "filters": filters or {},
+        "emit": emit,
     }
+
+
+def _result_payload(result: dict[str, Any]) -> dict[str, Any]:
+    """Project the final graph state onto the public response shape."""
+    return {
+        "answer_markdown": result.get("answer_markdown", ""),
+        "citations": result.get("citations", []),
+        "grounding_note": result.get("grounding_note", ""),
+        "trace_events": result.get("trace_events", []),
+        "query_type": result.get("query_type", ""),
+    }
+
+
+async def ask_corpus(
+    query: str,
+    toolkit=None,
+    session_id: str | None = None,
+    conversation_history: list[dict[str, str]] | None = None,
+    filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run the full agentic RAG pipeline for a query.
+
+    Returns:
+        {
+            "answer_markdown": str,
+            "citations": [...],
+            "grounding_note": str,
+            "trace_events": [str, ...]
+        }
+    """
+    graph = get_agentic_graph()
+
+    initial_state = _build_initial_state(query, toolkit, session_id, conversation_history, filters)
 
     try:
         result = await graph.ainvoke(initial_state)
@@ -810,10 +1081,58 @@ async def ask_corpus(
             "trace_events": initial_state.get("trace_events", []) + [f"error: {str(e)}"],
         }
 
-    return {
-        "answer_markdown": result.get("answer_markdown", ""),
-        "citations": result.get("citations", []),
-        "grounding_note": result.get("grounding_note", ""),
-        "trace_events": result.get("trace_events", []),
-        "query_type": result.get("query_type", ""),
-    }
+    return _result_payload(result)
+
+
+async def ask_corpus_streaming(
+    query: str,
+    toolkit=None,
+    session_id: str | None = None,
+    conversation_history: list[dict[str, str]] | None = None,
+    filters: dict[str, Any] | None = None,
+):
+    """Run the agentic pipeline, yielding live events as the graph executes.
+
+    Yields dicts:
+        {"type": "trace", "step": str}      — node progress, live
+        {"type": "token", "text": str}      — LLM tokens during generation, live
+        {"type": "error", "message": str}   — on failure
+        {"type": "done", "result": {...}}   — final payload (post-verification answer)
+    """
+    import asyncio
+
+    graph = get_agentic_graph()
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    _SENTINEL = "__graph_complete__"
+
+    initial_state = _build_initial_state(
+        query, toolkit, session_id, conversation_history, filters, emit=queue.put_nowait
+    )
+
+    async def _run() -> None:
+        try:
+            result = await graph.ainvoke(initial_state)
+            queue.put_nowait({"type": _SENTINEL, "result": result})
+        except Exception as e:
+            logger.error(f"Agentic graph failed (streaming): {e}", exc_info=True)
+            queue.put_nowait({"type": "error", "message": str(e)})
+            queue.put_nowait({"type": _SENTINEL, "result": None})
+
+    task = asyncio.create_task(_run())
+    try:
+        while True:
+            event = await queue.get()
+            if event.get("type") == _SENTINEL:
+                result = event.get("result")
+                if result is not None:
+                    yield {"type": "done", "result": _result_payload(result)}
+                break
+            yield event
+    finally:
+        # Client may disconnect mid-stream — don't leave the graph running.
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass

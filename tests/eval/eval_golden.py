@@ -8,6 +8,7 @@ This behaves as a gate blocking PR merges that regress quality.
 from __future__ import annotations
 
 import logging
+
 import pytest
 
 from src.agents.rag_graph import ask_corpus
@@ -31,7 +32,7 @@ GOLDEN_SET = [
         "question": "What are the limitations of transformers highlighted in the recent papers?",
         "expected_categories": ["cs.CL", "cs.LG", "cs.AI"],
         "min_citations": 1,
-    }
+    },
 ]
 
 
@@ -41,7 +42,14 @@ class MockToolkit:
     def __init__(self):
         self.redis = None
 
-    async def hybrid_search(self, query: str, top_k: int = 15) -> list[RetrievedChunk]:
+    async def hybrid_search(
+        self,
+        query: str,
+        top_k: int = 15,
+        filters: dict | None = None,
+        *args,
+        **kwargs,
+    ) -> list[RetrievedChunk]:
         """Return high-quality mocked research paper chunks."""
         return [
             RetrievedChunk(
@@ -71,7 +79,7 @@ class MockToolkit:
                 categories=["cs.IR", "cs.AI"],
                 published_date="2015-01-01",
                 score=0.85,
-            )
+            ),
         ]
 
     async def rerank_chunks(self, query: str, chunks: list[RetrievedChunk], top_k: int = 8) -> list[RetrievedChunk]:
@@ -80,7 +88,7 @@ class MockToolkit:
     async def get_paper(self, arxiv_id: str) -> dict | None:
         return {"title": "Mock Paper"}
 
-    async def search_arxiv_live(self, query: str) -> list[dict]:
+    async def search_arxiv_live(self, query: str, max_results: int = 5, *args, **kwargs) -> list[dict]:
         return []
 
     async def trigger_ingestion(self, arxiv_id: str) -> bool:
@@ -111,8 +119,9 @@ async def test_golden_questions_formatting_gate():
             assert f"[{cid}]" in answer, f"Citation [{cid}] is missing in inline text."
 
         # Verify grounding note format
-        assert "claims" in grounding_note.lower() or "citations" in grounding_note.lower(), \
+        assert "claims" in grounding_note.lower() or "citations" in grounding_note.lower(), (
             f"Grounding note '{grounding_note}' format is invalid."
+        )
 
 
 @pytest.mark.asyncio
@@ -126,9 +135,12 @@ async def test_golden_questions_faithfulness_gate():
         citations = result.get("citations", [])
 
         import re
+
         cited_nums = set(int(num) for num in re.findall(r"\[(\d+)\]", answer))
         valid_nums = set(c.get("id") for c in citations)
 
         # Hallucinated citation: the answer has [N] where N is not in the citations list
         hallucinated = cited_nums - valid_nums
-        assert len(hallucinated) == 0, f"HALLUCINATION: Citations {hallucinated} were cited but not returned in metadata."
+        assert len(hallucinated) == 0, (
+            f"HALLUCINATION: Citations {hallucinated} were cited but not returned in metadata."
+        )

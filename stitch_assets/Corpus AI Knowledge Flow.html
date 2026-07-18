@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Corpus AI - Ask</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#ef644c",
+                        "on-secondary": "#00382e",
+                        "on-surface": "#e4e2db",
+                        "on-secondary-fixed": "#00201a",
+                        "primary": "#c5c0ff",
+                        "surface-container-high": "#2a2a25",
+                        "error": "#ffb4ab",
+                        "surface-variant": "#353530",
+                        "primary-container": "#8b80ff",
+                        "secondary-container": "#00d0b1",
+                        "inverse-primary": "#5646d7",
+                        "on-background": "#e4e2db",
+                        "inverse-surface": "#e4e2db",
+                        "on-secondary-fixed-variant": "#005143",
+                        "surface-container": "#1f201b",
+                        "inverse-on-surface": "#30312b",
+                        "background": "#13140f",
+                        "surface-bright": "#393934",
+                        "outline-variant": "#474554",
+                        "on-primary-fixed-variant": "#3d28bf",
+                        "surface-tint": "#c5c0ff",
+                        "on-error": "#690005",
+                        "primary-fixed": "#e4dfff",
+                        "secondary": "#44edcc",
+                        "outline": "#928fa0",
+                        "on-primary-container": "#20008e",
+                        "on-primary": "#2600a1",
+                        "secondary-fixed-dim": "#2cdebe",
+                        "on-error-container": "#ffdad6",
+                        "tertiary": "#ffb4a6",
+                        "primary-fixed-dim": "#c5c0ff",
+                        "error-container": "#93000a",
+                        "on-tertiary": "#660800",
+                        "tertiary-fixed-dim": "#ffb4a6",
+                        "tertiary-fixed": "#ffdad3",
+                        "surface-container-low": "#1b1c17",
+                        "on-tertiary-container": "#5a0600",
+                        "on-secondary-container": "#005346",
+                        "secondary-fixed": "#58fbda",
+                        "surface": "#13140f",
+                        "on-tertiary-fixed-variant": "#8a1b0b",
+                        "surface-dim": "#13140f",
+                        "surface-container-highest": "#353530",
+                        "surface-container-lowest": "#0e0f0a",
+                        "on-surface-variant": "#c8c4d7",
+                        "on-tertiary-fixed": "#3f0300",
+                        "on-primary-fixed": "#150067"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "panel-gap": "12px",
+                        "gutter": "16px",
+                        "container-padding": "24px"
+                    },
+                    "fontFamily": {
+                        "display": ["Fraunces"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "label-mono": ["IBM Plex Mono"],
+                        "headline-lg": ["Fraunces"],
+                        "headline-lg-mobile": ["Fraunces"]
+                    },
+                    "fontSize": {
+                        "display": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "600" }],
+                        "label-mono": ["13px", { "lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "1.2", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #0A0D14; /* Ink-navy per prompt override */
+            color: #e4e2db;
+            overflow: hidden; /* Prevent scrolling on main body for this app layout */
+        }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .glass-panel {
+            background: rgba(42, 42, 37, 0.4); /* graphite-glass base */
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .glass-panel:hover {
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #c5c0ff 0%, #44edcc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-btn {
+            background: linear-gradient(135deg, #8b80ff 0%, #00d0b1 100%);
+        }
+        
+        .ghost-btn {
+            background: transparent;
+            position: relative;
+            z-index: 1;
+        }
+        .ghost-btn::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 9999px;
+            padding: 1px;
+            background: linear-gradient(135deg, #8b80ff 0%, #00d0b1 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            z-index: -1;
+        }
+
+        .input-glow:focus-within {
+            box-shadow: 0 0 15px rgba(68, 237, 204, 0.2);
+            border-color: rgba(68, 237, 204, 0.5);
+        }
+    </style>
+</head>
+<body class="h-screen w-full flex overflow-hidden">
+<!-- Top Navigation (Mobile Only) -->
+<nav class="md:hidden flex justify-between items-center px-container-padding h-16 w-full fixed top-0 z-50 bg-transparent backdrop-blur-md transition-opacity duration-200">
+<div class="font-display text-display text-primary dark:text-primary text-xl">Corpus</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant hover:text-secondary cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-secondary cursor-pointer">share</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-secondary cursor-pointer">account_circle</span>
+</div>
+</nav>
+<!-- SideNavBar (Desktop) -->
+<nav class="hidden md:flex bg-surface-container dark:bg-surface-container h-screen w-20 flex-col border-r border-white/10 backdrop-blur-xl shadow-md transition-all duration-300 ease-in-out flex flex-col h-full py-unit-gutter flex-shrink-0 z-40">
+<!-- Logo Area -->
+<div class="flex flex-col items-center justify-center mt-4 mb-8 group cursor-pointer">
+<div class="w-10 h-10 rounded-xl bg-surface-variant flex items-center justify-center border border-white/5 group-hover:border-primary/30 transition-colors">
+<span class="font-display text-primary text-2xl leading-none">C</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<div class="flex flex-col items-center w-full gap-y-6 flex-grow">
+<!-- Active: Research -->
+<div class="relative w-full flex justify-center group cursor-pointer">
+<div class="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-[2px] bg-secondary rounded-r-full"></div>
+<div class="flex flex-col items-center gap-1 p-2 rounded-xl text-secondary bg-white/5">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="font-label-sm text-label-sm opacity-100">Research</span>
+</div>
+</div>
+<!-- Inactive -->
+<div class="relative w-full flex justify-center group cursor-pointer">
+<div class="flex flex-col items-center gap-1 p-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">psychology_alt</span>
+<span class="font-label-sm text-label-sm opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-4">Deep Dive</span>
+</div>
+</div>
+<div class="relative w-full flex justify-center group cursor-pointer">
+<div class="flex flex-col items-center gap-1 p-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-label-sm text-label-sm opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-4">Library</span>
+</div>
+</div>
+<div class="relative w-full flex justify-center group cursor-pointer">
+<div class="flex flex-col items-center gap-1 p-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">sensors</span>
+<span class="font-label-sm text-label-sm opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-4">Signals</span>
+</div>
+</div>
+</div>
+<!-- Bottom Actions -->
+<div class="flex flex-col items-center gap-6 mb-4">
+<button class="w-12 h-12 rounded-full gradient-btn flex items-center justify-center text-white shadow-lg hover:shadow-primary/20 transition-all hover:scale-105" title="New Thread">
+<span class="material-symbols-outlined">add</span>
+</button>
+<div class="w-full flex justify-center group cursor-pointer">
+<div class="flex flex-col items-center gap-1 p-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-white/10 cursor-pointer">
+<img alt="User Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-g8iiMIwtWqXkHLtVhFJPyqswFcPMpJcwkFz912EZNU0-VqxLOxR7Bp-Du7etNm4Gsmd52B13-9aG8wnkZYld9oDX5ptPvIMLToA74HF0_gisV0D86CMCi4U2wA1rkPl-B1q7YOJrRFMNj8CTro1lAMu7WiiRp0YnpN4Y8rxwSO2gdUkGvB7w2BbmUHsLO9iE_Fbz4sbo4YEz1RtZkrny39DuQaGACjaVRwe6VfgdBkogdTCMKO11"/>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-grow flex h-full relative pt-16 md:pt-0">
+<!-- Center: Canvas (Evidence Constellation) -->
+<div class="flex-grow relative flex flex-col items-center justify-center h-full p-4 md:p-8">
+<!-- Background Animation Shader -->
+<div class="absolute inset-0 z-0 opacity-60">
+
+</div>
+<!-- Header / Status Area -->
+<div class="absolute top-8 left-8 z-10 hidden md:block">
+<h1 class="font-headline-lg text-headline-lg gradient-text mb-2">Corpus AI</h1>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+</span>
+                    Connecting to knowledge graph...
+                </p>
+</div>
+<!-- Empty State / Welcome (Fades out when chat starts) -->
+<div class="z-10 flex flex-col items-center text-center max-w-2xl mt-[-10vh]">
+<div class="w-20 h-20 rounded-full glass-panel flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(139,128,255,0.2)]">
+<span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<h2 class="font-display text-4xl md:text-display text-on-surface mb-4">What shall we explore?</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-8 opacity-80">
+                    Query millions of academic papers, construct hypotheses, or dive deep into specific domains.
+                </p>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="ghost-btn px-4 py-2 text-primary font-label-mono text-label-mono rounded-full hover:bg-white/5 transition-colors">
+                        "Recent advances in solid-state batteries"
+                    </button>
+<button class="ghost-btn px-4 py-2 text-primary font-label-mono text-label-mono rounded-full hover:bg-white/5 transition-colors">
+                        "Summarize the impact of..."
+                    </button>
+</div>
+</div>
+<!-- Floating Input Dock -->
+<div class="absolute bottom-8 w-full max-w-3xl px-4 z-20">
+<div class="glass-panel rounded-[32px] p-2 flex items-center gap-3 input-glow transition-all duration-300">
+<button class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors flex-shrink-0">
+<span class="material-symbols-outlined">attach_file</span>
+</button>
+<input autocomplete="off" class="flex-grow bg-transparent border-none text-on-surface font-body-md text-body-md focus:ring-0 placeholder:text-on-surface-variant/50 h-12" placeholder="Ask about your papers, concepts, or authors..." type="text"/>
+<button class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors flex-shrink-0">
+<span class="material-symbols-outlined">mic</span>
+</button>
+<button class="w-12 h-12 rounded-full gradient-btn flex items-center justify-center text-white flex-shrink-0 hover:shadow-[0_0_20px_rgba(0,208,177,0.4)] transition-shadow">
+<span class="material-symbols-outlined">arrow_upward</span>
+</button>
+</div>
+<div class="text-center mt-3 font-label-mono text-[10px] text-on-surface-variant/40 tracking-wider">
+                    CORPUS AI MODEL V4.2 • RESPONSES MAY CONTAIN INACCURACIES
+                </div>
+</div>
+</div>
+<!-- Right: Agent Trace Panel (Desktop) -->
+<aside class="hidden xl:flex w-80 h-full flex-col border-l border-white/5 bg-[#13140f]/80 z-30 flex-shrink-0 transition-transform duration-300 transform translate-x-0">
+<!-- Panel Header -->
+<div class="h-16 flex items-center justify-between px-6 border-b border-white/5">
+<div class="flex items-center gap-2 text-on-surface">
+<span class="material-symbols-outlined text-secondary">memory</span>
+<h3 class="font-label-mono text-label-mono uppercase tracking-widest text-on-surface-variant">Agent Trace</h3>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Panel Content Area -->
+<div class="flex-grow p-6 overflow-y-auto relative glass-panel m-4 rounded-xl">
+<!-- Background ambient blur inside the panel -->
+<div class="absolute inset-0 bg-gradient-to-b from-transparent to-surface-container/50 pointer-events-none"></div>
+<div class="relative z-10 flex flex-col items-center justify-center h-full text-center opacity-50">
+<span class="material-symbols-outlined text-4xl mb-4 text-on-surface-variant">radar</span>
+<p class="font-label-mono text-label-mono text-on-surface-variant">
+                        Awaiting query...<br/>
+                        Trace logs will appear here during active processing.
+                    </p>
+</div>
+</div>
+</aside>
+</main>
+<!-- Bottom Navigation (Mobile Only) -->
+<nav class="md:hidden flex justify-around items-center h-16 w-full fixed bottom-0 z-50 bg-surface-container/90 backdrop-blur-md border-t border-white/5">
+<div class="flex flex-col items-center justify-center w-full h-full text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="font-label-sm text-[10px] mt-1">Research</span>
+</div>
+<div class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">psychology_alt</span>
+<span class="font-label-sm text-[10px] mt-1">Deep Dive</span>
+</div>
+<div class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-label-sm text-[10px] mt-1">Library</span>
+</div>
+<div class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">sensors</span>
+<span class="font-label-sm text-[10px] mt-1">Signals</span>
+</div>
+</nav>
+</body></html>

@@ -49,10 +49,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Startup: initialize connection pools ──
     from src.db.opensearch import create_opensearch_client
     from src.db.postgres import create_engine_and_session
-    from src.services.redis_client import create_redis_client
 
     # PostgreSQL
+    from src.models.paper import Base as PaperBase  # noqa: F401
+    from src.services.redis_client import create_redis_client
     engine, session_factory = create_engine_and_session(settings.postgres.database_url)
+    PaperBase.metadata.create_all(bind=engine)
     app.state.db_engine = engine
     app.state.db_session_factory = session_factory
     logger.info("corpus.postgres.connected")
@@ -64,6 +66,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Redis
     app.state.redis = await create_redis_client(settings.redis)
     logger.info("corpus.redis.connected", host=settings.redis.host)
+
+    # Embedding + reranker models — load eagerly so requests don't pay the
+    # multi-second cold-load cost. Fails loudly on error: broken embeddings
+    # must never degrade silently.
+    import asyncio as _asyncio
+
+    from src.retrieval.reranker import _get_cross_encoder
+    from src.services.embedding_client import warm_embedding_model
+
+    await _asyncio.to_thread(warm_embedding_model)
+    logger.info("corpus.embeddings.ready", model=settings.embedding.model_name)
+
+    if settings.reranker.enabled and settings.reranker.backend == "local":
+        await _asyncio.to_thread(_get_cross_encoder)
+        logger.info("corpus.reranker.ready", model=settings.reranker.model)
 
     yield
 
@@ -96,6 +113,20 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    # ── Circuit breaker → 503 ──
+    from fastapi import Request as _Request
+    from fastapi.responses import JSONResponse
+
+    from src.services.resilience import CircuitBreakerOpenException
+
+    @app.exception_handler(CircuitBreakerOpenException)
+    async def circuit_breaker_handler(request: _Request, exc: CircuitBreakerOpenException) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": str(exc)},
+            headers={"Retry-After": "30"},
+        )
+
     # ── CORS ──
     app.add_middleware(
         CORSMiddleware,
@@ -105,14 +136,24 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # ── Prometheus metrics ──
+    from prometheus_client import make_asgi_app
+
+    from src.middleware.metrics import MetricsMiddleware
+
+    app.add_middleware(MetricsMiddleware)
+    app.mount("/metrics", make_asgi_app())
+
     # ── Routers ──
-    from src.routers.health import router as health_router
     from src.routers.ask import router as ask_router
+    from src.routers.eval import router as eval_router
     from src.routers.feedback import router as feedback_router
+    from src.routers.health import router as health_router
 
     app.include_router(health_router, prefix="/api/v1", tags=["health"])
     app.include_router(ask_router, prefix="/api/v1", tags=["rag"])
     app.include_router(feedback_router, prefix="/api/v1", tags=["feedback"])
+    app.include_router(eval_router, prefix="/api/v1", tags=["evaluation"])
 
     return app
 

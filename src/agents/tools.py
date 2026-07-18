@@ -7,15 +7,27 @@ to call them, the tools handle HOW.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.config import get_settings
 from src.retrieval.hybrid_search import HybridSearchService, RetrievedChunk
 from src.retrieval.reranker import RerankerInterface
+from src.services.resilience import arxiv_circuit_breaker, with_retry
 
 logger = logging.getLogger(__name__)
+
+
+@arxiv_circuit_breaker
+@with_retry(max_attempts=2)
+async def _fetch_arxiv_feed(base_url: str, params: dict[str, Any], timeout: float) -> str:
+    """Fetch an arXiv Atom feed behind the shared arXiv circuit breaker."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.get(base_url, params=params)
+        resp.raise_for_status()
+        return resp.text
 
 
 class AgentToolkit:
@@ -41,8 +53,8 @@ class AgentToolkit:
         self,
         query: str,
         top_k: int = 15,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[RetrievedChunk]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[RetrievedChunk]:
         """Tool: hybrid_search(query, filters) — BM25 + vector + RRF."""
         filters = filters or {}
         return await self.search.search(
@@ -59,13 +71,13 @@ class AgentToolkit:
     async def rerank_chunks(
         self,
         query: str,
-        chunks: List[RetrievedChunk],
+        chunks: list[RetrievedChunk],
         top_k: int = 8,
-    ) -> List[RetrievedChunk]:
+    ) -> list[RetrievedChunk]:
         """Tool: rerank(candidates, query) — cross-encoder precision pass."""
         return await self.reranker.rerank(query, chunks, top_k)
 
-    async def get_paper(self, arxiv_id: str) -> Optional[Dict[str, Any]]:
+    async def get_paper(self, arxiv_id: str) -> dict[str, Any] | None:
         """Tool: get_paper(arxiv_id) — fetch paper metadata from Postgres."""
         if not self.db_session:
             return None
@@ -73,11 +85,7 @@ class AgentToolkit:
         try:
             from src.models.paper import Paper
 
-            paper = (
-                self.db_session.query(Paper)
-                .filter(Paper.arxiv_id == arxiv_id)
-                .first()
-            )
+            paper = self.db_session.query(Paper).filter(Paper.arxiv_id == arxiv_id).first()
             if paper:
                 return {
                     "arxiv_id": paper.arxiv_id,
@@ -93,10 +101,8 @@ class AgentToolkit:
             logger.error(f"get_paper failed for {arxiv_id}: {e}")
         return None
 
-    async def search_arxiv_live(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    async def search_arxiv_live(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
         """Tool: search_arxiv_live(query) — hit arXiv API directly for papers not in index."""
-        import httpx
-
         settings = self.settings
 
         params = {
@@ -108,10 +114,7 @@ class AgentToolkit:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=settings.arxiv.timeout_seconds) as client:
-                resp = await client.get(settings.arxiv.base_url, params=params)
-                resp.raise_for_status()
-                xml_content = resp.text
+            xml_content = await _fetch_arxiv_feed(settings.arxiv.base_url, params, settings.arxiv.timeout_seconds)
 
             # Parse Atom XML feed
             import xml.etree.ElementTree as ET
@@ -134,14 +137,16 @@ class AgentToolkit:
                     if name_el is not None and name_el.text:
                         authors.append(name_el.text)
 
-                results.append({
-                    "arxiv_id": arxiv_id,
-                    "title": title_el.text.strip() if title_el is not None and title_el.text else "",
-                    "authors": authors,
-                    "abstract": summary_el.text.strip() if summary_el is not None and summary_el.text else "",
-                    "arxiv_url": f"https://arxiv.org/abs/{arxiv_id}",
-                    "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
-                })
+                results.append(
+                    {
+                        "arxiv_id": arxiv_id,
+                        "title": title_el.text.strip() if title_el is not None and title_el.text else "",
+                        "authors": authors,
+                        "abstract": summary_el.text.strip() if summary_el is not None and summary_el.text else "",
+                        "arxiv_url": f"https://arxiv.org/abs/{arxiv_id}",
+                        "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
+                    }
+                )
 
             logger.info(f"Live arXiv search returned {len(results)} results for '{query}'")
             return results
@@ -157,17 +162,15 @@ class AgentToolkit:
             return False
 
         try:
-            import json
+            from src.services.redis_services import RedisServicesManager
 
-            task_data = json.dumps({"arxiv_id": arxiv_id, "priority": "high"})
-            await self.redis.lpush("corpus:ingestion:queue", task_data)
-            logger.info(f"Queued on-demand ingestion for {arxiv_id}")
-            return True
+            manager = RedisServicesManager(self.redis)
+            return await manager.enqueue_paper_ingestion(arxiv_id)
         except Exception as e:
             logger.error(f"Failed to queue ingestion for {arxiv_id}: {e}")
             return False
 
-    async def list_recent(self, topic: str = "", n: int = 10) -> List[Dict[str, Any]]:
+    async def list_recent(self, topic: str = "", n: int = 10) -> list[dict[str, Any]]:
         """Tool: list_recent(topic, n) — query recent papers from Postgres."""
         if not self.db_session:
             return []
@@ -197,11 +200,9 @@ class AgentToolkit:
             logger.error(f"list_recent failed: {e}")
             return []
 
-    async def compare(
-        self, paper_ids: List[str], aspect: str = ""
-    ) -> Dict[str, List[RetrievedChunk]]:
+    async def compare(self, paper_ids: list[str], aspect: str = "") -> dict[str, list[RetrievedChunk]]:
         """Tool: compare(paper_ids, aspect) — retrieve chunks from specific papers for comparison."""
-        result: Dict[str, List[RetrievedChunk]] = {}
+        result: dict[str, list[RetrievedChunk]] = {}
         search_query = aspect or "main contributions methods results"
 
         for arxiv_id in paper_ids:

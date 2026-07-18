@@ -78,7 +78,7 @@ class ChunkingSettings(BaseSettings):
 
 
 class JinaSettings(BaseSettings):
-    """Jina AI embeddings and reranker settings."""
+    """Jina AI embeddings and reranker settings (legacy backend, kept for rollback)."""
 
     model_config = SettingsConfigDict(env_prefix="JINA", extra="ignore")
 
@@ -87,13 +87,26 @@ class JinaSettings(BaseSettings):
     reranker_model: str = Field(default="jina-reranker-v2-base-multilingual", alias="JINA__RERANKER_MODEL")
 
 
+class EmbeddingSettings(BaseSettings):
+    """Embedding backend settings — local sentence-transformers by default."""
+
+    model_config = SettingsConfigDict(env_prefix="EMBEDDING__", extra="ignore")
+
+    backend: str = "local"  # "local" (sentence-transformers) or "jina" (legacy rollback)
+    model_name: str = "BAAI/bge-m3"
+    device: str = "cpu"  # "cuda" only for offline reindex runs
+    batch_size: int = 32
+    max_length: int = 1024
+    normalize: bool = True
+
+
 class OllamaSettings(BaseSettings):
     """Ollama local LLM settings."""
 
     model_config = SettingsConfigDict(env_prefix="OLLAMA", extra="ignore")
 
     host: str = Field(default="http://localhost:11434", alias="OLLAMA_HOST")
-    model: str = Field(default="llama3.2:1b", alias="OLLAMA_MODEL")
+    model: str = Field(default="qwen3:8b", alias="OLLAMA_MODEL")
     timeout: int = Field(default=300, alias="OLLAMA_TIMEOUT")
 
 
@@ -122,8 +135,8 @@ class PdfParserSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="PDF_PARSER__", extra="ignore")
 
-    max_file_size_mb: int = 30
-    max_pages: int = 50
+    max_file_size_mb: int = 200
+    max_pages: int = 1000
     do_table_structure: bool = True
 
 
@@ -133,8 +146,11 @@ class RerankerSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RERANKER__", extra="ignore")
 
     enabled: bool = True
-    backend: str = "jina"  # "jina", "cohere", "noop"
-    model: str = "jina-reranker-v2-base-multilingual"
+    backend: str = "local"  # "local" (cross-encoder), "jina" (legacy), "noop"
+    model: str = "BAAI/bge-reranker-v2-m3"
+    device: str = "cpu"
+    max_length: int = 512
+    batch_size: int = 8
     top_k: int = 8
     timeout: int = 30
 
@@ -144,9 +160,10 @@ class LiteLLMSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LITELLM__", extra="ignore")
 
-    default_model: str = "ollama/llama3.2:1b"
-    reasoning_model: str = "ollama/llama3.2:1b"
-    drafting_model: str = "ollama/llama3.2:1b"
+    default_model: str = "ollama/qwen3:8b"
+    reasoning_model: str = "ollama/qwen3:8b"
+    drafting_model: str = "ollama/qwen3:8b"
+    fast_model: str = "ollama/llama3.2:3b"  # router/grader/rewrite — latency-critical roles
     timeout: int = 300
     max_retries: int = 2
 
@@ -164,6 +181,14 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, alias="API_PORT")
     api_key: str = Field(default="", alias="API_KEY")
 
+    # Pipeline behavior
+    enable_llm_verification: bool = Field(default=True, alias="ENABLE_LLM_VERIFICATION")
+    semantic_cache_enabled: bool = Field(default=True, alias="SEMANTIC_CACHE_ENABLED")
+    semantic_cache_threshold: float = Field(default=0.96, alias="SEMANTIC_CACHE_THRESHOLD")
+    guardrails_max_query_chars: int = Field(default=2000, alias="GUARDRAILS_MAX_QUERY_CHARS")
+    grading_max_chunks: int = Field(default=12, alias="GRADING_MAX_CHUNKS")
+    generation_max_tokens: int = Field(default=4096, alias="GENERATION_MAX_TOKENS")
+
     # Sub-settings (loaded from env as well)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)
     opensearch: OpenSearchSettings = Field(default_factory=OpenSearchSettings)
@@ -172,6 +197,7 @@ class Settings(BaseSettings):
     pdf_parser: PdfParserSettings = Field(default_factory=PdfParserSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     jina: JinaSettings = Field(default_factory=JinaSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     langfuse: LangfuseSettings = Field(default_factory=LangfuseSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)

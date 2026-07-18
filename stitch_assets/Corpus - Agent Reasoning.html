@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Corpus Ask - Active Reasoning</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#353530",
+                        "outline": "#928fa0",
+                        "secondary-fixed": "#58fbda",
+                        "surface-tint": "#c5c0ff",
+                        "on-primary-container": "#20008e",
+                        "on-tertiary-container": "#5a0600",
+                        "surface-dim": "#13140f",
+                        "on-secondary-container": "#005346",
+                        "on-tertiary-fixed-variant": "#8a1b0b",
+                        "secondary": "#44edcc",
+                        "secondary-fixed-dim": "#2cdebe",
+                        "error": "#ffb4ab",
+                        "on-error": "#690005",
+                        "surface-bright": "#393934",
+                        "on-background": "#e4e2db",
+                        "primary-container": "#8b80ff",
+                        "on-surface-variant": "#c8c4d7",
+                        "surface-container": "#1f201b",
+                        "tertiary-container": "#ef644c",
+                        "tertiary-fixed-dim": "#ffb4a6",
+                        "on-primary-fixed": "#150067",
+                        "surface-container-lowest": "#0e0f0a",
+                        "primary": "#c5c0ff",
+                        "inverse-on-surface": "#30312b",
+                        "on-surface": "#e4e2db",
+                        "secondary-container": "#00d0b1",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#e4dfff",
+                        "tertiary": "#ffb4a6",
+                        "on-secondary-fixed-variant": "#005143",
+                        "error-container": "#93000a",
+                        "inverse-primary": "#5646d7",
+                        "surface": "#13140f",
+                        "outline-variant": "#474554",
+                        "primary-fixed-dim": "#c5c0ff",
+                        "inverse-surface": "#e4e2db",
+                        "on-primary-fixed-variant": "#3d28bf",
+                        "tertiary-fixed": "#ffdad3",
+                        "surface-variant": "#353530",
+                        "on-secondary-fixed": "#00201a",
+                        "surface-container-low": "#1b1c17",
+                        "on-secondary": "#00382e",
+                        "on-primary": "#2600a1",
+                        "on-tertiary-fixed": "#3f0300",
+                        "surface-container-high": "#2a2a25",
+                        "on-tertiary": "#660800",
+                        "background": "#13140f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "container-padding": "24px",
+                        "gutter": "16px",
+                        "panel-gap": "12px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "display": ["Fraunces"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "headline-lg": ["Fraunces"],
+                        "headline-lg-mobile": ["Fraunces"],
+                        "label-mono": ["IBM Plex Mono"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "display": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "label-mono": ["13px", { "lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Custom Styles & Animations */
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-surface');
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(42, 42, 37, 0.4); /* surface-container-high with opacity */
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .glass-panel:hover {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Floating Element (Surface 3) */
+        .floating-panel {
+            background: rgba(31, 32, 27, 0.7); /* surface-container with higher opacity */
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        /* Gradients */
+        .bg-gradient-accent {
+            background: linear-gradient(135deg, theme('colors.primary-container'), theme('colors.secondary-container'));
+        }
+        
+        .text-gradient-accent {
+            background: linear-gradient(135deg, theme('colors.primary-fixed-dim'), theme('colors.secondary-fixed'));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .border-gradient-accent {
+            border-image: linear-gradient(135deg, theme('colors.primary-container'), theme('colors.secondary-container')) 1;
+        }
+
+        /* Thinking Indicator Orb */
+        .thinking-orb {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, theme('colors.primary-container'), theme('colors.secondary-container'));
+            filter: blur(8px);
+            animation: pulse-orb 2s infinite ease-in-out;
+            z-index: -1;
+        }
+
+        @keyframes pulse-orb {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
+
+        /* Active Node Glow */
+        .node-active-glow {
+            box-shadow: 0 0 15px 5px rgba(139, 128, 255, 0.3); /* primary-container glow */
+        }
+        
+        /* Trace Thread */
+        .trace-thread {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 0;
+        }
+        
+        .trace-thread-active {
+            background: linear-gradient(to bottom, theme('colors.secondary-container'), theme('colors.primary-container'));
+            box-shadow: 0 0 8px theme('colors.primary-container');
+        }
+
+        /* Connecting Thread (Hover Card to Chip) */
+        .glow-thread-horizontal {
+            position: absolute;
+            height: 1px;
+            background: linear-gradient(to right, theme('colors.primary-container'), transparent);
+            box-shadow: 0 0 4px theme('colors.primary-container');
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="h-screen w-full overflow-hidden flex flex-col font-body-md text-body-md">
+<!-- Top Navigation Bar -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-container-padding h-16 bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-sm">
+<!-- Brand/Search Left -->
+<div class="flex items-center gap-6 h-full">
+<span class="font-display text-display text-primary tracking-tight text-[24px]">Corpus</span>
+<div class="hidden md:flex items-center gap-4 h-full ml-4">
+<a class="h-full flex items-center text-outline hover:text-on-surface transition-colors" href="#">Library</a>
+<a class="h-full flex items-center text-secondary-fixed font-bold border-b-2 border-secondary-fixed pb-1" href="#">Threads</a>
+</div>
+</div>
+<!-- Trailing Actions Right -->
+<div class="flex items-center gap-4">
+<button class="p-2 text-outline hover:bg-white/5 transition-all rounded-full active:scale-95 duration-200 group">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">notifications</span>
+</button>
+<button class="p-2 text-outline hover:bg-white/5 transition-all rounded-full active:scale-95 duration-200 group">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-white/10 hover:border-white/30 transition-all cursor-pointer">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A macro shot of a sleek, abstract geometric glass sculpture reflecting deep violet and teal lights in a dark void. Highly detailed, crisp focus, representing a futuristic AI user avatar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5g8SrSIeZ0iPX7yiePHg32YylRo7dmsrfuXBKg1uGeH4p0gz_p4kOetCkoP0m83xhBuHK66oxLINQ2uR4S2ZNYRMkbAtAXNJO59VsGmeXkpBFP0Zm7jthSOy13Ali6b4Vgn63i-qKMFjzZ-EzKcnoZRL0epk8UX3dkAepj1jPpqLBefzcD38LH27B0bWUtYnI8WnGDPjhvRm6cgRzQlGbcaCFNRSD5G_CKL2_9AqCPLrrdaVFFVBu"/>
+</div>
+</div>
+</nav>
+<!-- Side Navigation Bar -->
+<aside class="hidden md:flex fixed left-0 top-16 bottom-0 flex-col py-panel-gap bg-surface-dim/90 backdrop-blur-lg border-r border-white/5 docked left-0 h-full w-64 z-40 transition-all duration-300 ease-in-out">
+<div class="px-6 mb-8 flex flex-col gap-1 mt-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg overflow-hidden border border-white/10 flex-shrink-0">
+<img alt="Corpus Logo" class="w-full h-full object-cover" data-alt="A minimalist, glowing abstract emblem resembling a neural network node in deep teal and violet on a dark charcoal background. High contrast, sharp edges." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8WDyp1veqn5-kKczUUV-JZLpLJskeeh2H5eYIfwH3y9OkUehYV9w_8veUU5z22vumTnKaF4fYBU1aSXAmYjtog1HHtYIsua50-uUlvve2-rkYMFek60nCVlFIEhxaORtRUWYcY11yKEGR-3VovYBBHrvsh1ejjz3Kx4akyv81Bzu6pxBpGxGmW689Q67eH0GaRteSHFu5QFjP5RikhiS0sB3MwEwUAW8coNi_4sMkKvA4HwJtOeCI"/>
+</div>
+<div class="flex flex-col">
+<span class="font-display text-headline-lg-mobile text-primary leading-none">Corpus AI</span>
+<span class="font-label-mono text-label-mono text-outline mt-1">v2.4 Agentic</span>
+</div>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-gradient-accent text-white font-label-sm hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary-container/20">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Thread
+            </button>
+</div>
+<div class="flex-1 overflow-y-auto px-2 space-y-1">
+<a class="bg-secondary-container/20 text-secondary-fixed rounded-lg mx-2 flex items-center gap-3 px-4 py-3 hover:backdrop-blur-2xl transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">biotech</span>
+<span>Research</span>
+</a>
+<a class="text-outline hover:text-on-surface-variant rounded-lg mx-2 flex items-center gap-3 px-4 py-3 hover:backdrop-blur-2xl hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Archives</span>
+</a>
+<a class="text-outline hover:text-on-surface-variant rounded-lg mx-2 flex items-center gap-3 px-4 py-3 hover:backdrop-blur-2xl hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">database</span>
+<span>Datasets</span>
+</a>
+<a class="text-outline hover:text-on-surface-variant rounded-lg mx-2 flex items-center gap-3 px-4 py-3 hover:backdrop-blur-2xl hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</div>
+<div class="mt-auto px-2 pb-4 space-y-1 border-t border-white/5 pt-4 mx-4">
+<a class="text-outline hover:text-on-surface-variant rounded-lg flex items-center gap-3 px-4 py-2 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">help</span>
+<span class="font-label-sm">Support</span>
+</a>
+<a class="text-outline hover:text-on-surface-variant rounded-lg flex items-center gap-3 px-4 py-2 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">account_circle</span>
+<span class="font-label-sm">Account</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex mt-16 md:ml-64 relative overflow-hidden">
+<!-- Center Canvas: Active Reasoning Chat -->
+<div class="flex-1 flex flex-col p-container-padding relative overflow-y-auto">
+<!-- Context Header -->
+<div class="max-w-3xl mx-auto w-full mb-8 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary-fixed text-[20px]">verified</span>
+<span class="font-label-mono text-label-mono text-secondary-fixed tracking-wider uppercase drop-shadow-[0_0_8px_rgba(88,251,218,0.4)]">3 of 3 claims verified</span>
+</div>
+</div>
+<!-- Chat Stream -->
+<div class="max-w-3xl mx-auto w-full flex-1 flex flex-col gap-6">
+<!-- Assistant Message Mid-stream -->
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border border-white/10 flex items-center justify-center flex-shrink-0 mt-1 relative">
+<span class="material-symbols-outlined text-primary text-[18px]">smart_toy</span>
+<!-- Thinking Orb Behind Icon -->
+<div class="thinking-orb top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+</div>
+<div class="flex-1 space-y-4">
+<div class="font-body-lg text-body-lg text-on-surface leading-relaxed relative">
+                            Based on the provided papers, the scaling laws suggest that model performance improves predictably with 
+                            
+                            <!-- Inline Citation Chips -->
+<span class="inline-flex gap-1 mx-1 align-middle relative">
+<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-gradient-accent text-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] cursor-pointer hover:opacity-90 transition-opacity border border-white/20 relative z-10">[1]</span>
+<!-- Hovered Citation Chip [2] -->
+<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-gradient-accent text-white shadow-[0_4px_8px_rgba(139,128,255,0.4)] cursor-pointer border border-white/40 transform scale-110 relative z-20" id="hover-chip">[2]</span>
+<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-gradient-accent text-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] cursor-pointer hover:opacity-90 transition-opacity border border-white/20 relative z-10">[3]</span>
+</span>
+<span class="inline-block w-2 h-5 bg-secondary-fixed align-middle ml-1 animate-pulse"></span>
+<!-- Floating Glass Card (Hover State for [2]) -->
+<div class="absolute -top-32 left-1/2 -translate-x-1/2 w-72 floating-panel rounded-xl p-4 z-50 pointer-events-none opacity-100 transition-opacity duration-200">
+<div class="flex flex-col gap-2">
+<h4 class="font-headline-lg-mobile text-[16px] text-on-surface font-semibold leading-tight">Training Compute-Optimal Large Language Models</h4>
+<p class="font-label-mono text-[11px] text-outline">Hoffmann et al. • 2022</p>
+<div class="h-px w-full bg-white/10 my-1"></div>
+<p class="font-body-md text-[13px] text-on-surface-variant line-clamp-2">"We find that for compute-optimal training, model size and the number of training tokens should be scaled equally..."</p>
+</div>
+<!-- Pointing Triangle -->
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-container border-r border-b border-white/15 rotate-45"></div>
+</div>
+</div>
+<!-- Action Bar Ghost Icons -->
+<div class="flex items-center gap-2 pt-2">
+<button class="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-white/5 transition-all" title="Copy">
+<span class="material-symbols-outlined text-[18px]">content_copy</span>
+</button>
+<button class="p-1.5 rounded-lg text-outline hover:text-secondary-fixed hover:bg-white/5 transition-all" title="Thumbs Up">
+<span class="material-symbols-outlined text-[18px]">thumb_up</span>
+</button>
+<button class="p-1.5 rounded-lg text-outline hover:text-error hover:bg-white/5 transition-all" title="Thumbs Down">
+<span class="material-symbols-outlined text-[18px]">thumb_down</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Agent Trace Panel -->
+<div class="w-80 h-full border-l border-white/5 bg-surface-container-lowest/50 backdrop-blur-sm flex flex-col flex-shrink-0 z-30">
+<div class="p-4 border-b border-white/5 flex items-center justify-between">
+<span class="font-label-mono text-label-mono text-outline uppercase tracking-wider">Agent Trace</span>
+<span class="font-label-mono text-[10px] text-primary-container bg-primary-container/10 px-2 py-0.5 rounded-full">ACTIVE</span>
+</div>
+<!-- Trace Nodes Container -->
+<div class="flex-1 overflow-y-auto p-6 relative">
+<!-- Background Thread Line -->
+<div class="trace-thread top-6 bottom-6"></div>
+<!-- Active Thread Line up to node 4 -->
+<div class="trace-thread trace-thread-active top-6 h-48"></div>
+<div class="flex flex-col gap-8 relative z-10">
+<!-- Completed Node 1 -->
+<div class="flex items-center gap-4 relative">
+<div class="w-6 h-6 rounded-full bg-surface border border-secondary-container flex items-center justify-center z-10 shadow-[0_0_8px_rgba(0,208,177,0.2)]">
+<span class="material-symbols-outlined text-[14px] text-secondary-container">check</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[12px] text-secondary-container">Parse Query</span>
+<span class="text-[10px] text-outline/50">0.2s</span>
+</div>
+</div>
+<!-- Completed Node 2 -->
+<div class="flex items-center gap-4 relative">
+<div class="w-6 h-6 rounded-full bg-surface border border-secondary-container flex items-center justify-center z-10 shadow-[0_0_8px_rgba(0,208,177,0.2)]">
+<span class="material-symbols-outlined text-[14px] text-secondary-container">check</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[12px] text-secondary-container">Deconstruct Intent</span>
+<span class="text-[10px] text-outline/50">0.8s</span>
+</div>
+</div>
+<!-- Completed Node 3 -->
+<div class="flex items-center gap-4 relative">
+<div class="w-6 h-6 rounded-full bg-surface border border-secondary-container flex items-center justify-center z-10 shadow-[0_0_8px_rgba(0,208,177,0.2)]">
+<span class="material-symbols-outlined text-[14px] text-secondary-container">check</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[12px] text-secondary-container">Formulate Search Strategy</span>
+<span class="text-[10px] text-outline/50">1.1s</span>
+</div>
+</div>
+<!-- Active Node 4 (Retrieve) -->
+<div class="flex items-center gap-4 relative">
+<div class="w-8 h-8 rounded-full bg-surface border-2 border-primary-container flex items-center justify-center z-10 node-active-glow -ml-1">
+<div class="w-3 h-3 rounded-full bg-primary-container animate-pulse"></div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[14px] text-primary-fixed-dim font-bold drop-shadow-[0_0_4px_rgba(197,192,255,0.5)]">Retrieve</span>
+<span class="text-[10px] text-primary-container/80 animate-pulse">Searching Corpus Index...</span>
+</div>
+</div>
+<!-- Dim Node 5 -->
+<div class="flex items-center gap-4 relative opacity-40">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[12px] text-on-surface-variant">Rank &amp; Filter</span>
+</div>
+</div>
+<!-- Dim Node 6 -->
+<div class="flex items-center gap-4 relative opacity-40">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[12px] text-on-surface-variant">Extract Evidence</span>
+</div>
+</div>
+<!-- Dim Node 7 -->
+<div class="flex items-center gap-4 relative opacity-40">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-mono text-[12px] text-on-surface-variant">Cross-Reference</span>
+</div>
+</div>
+<!-- Dim Nodes 8-11 (Compact representation for space) -->
+<div class="flex items-center gap-4 relative opacity-30">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10"></div>
+<span class="font-label-mono text-[12px] text-on-surface-variant">Synthesize Claims</span>
+</div>
+<div class="flex items-center gap-4 relative opacity-30">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10"></div>
+<span class="font-label-mono text-[12px] text-on-surface-variant">Verify Grounding</span>
+</div>
+<div class="flex items-center gap-4 relative opacity-30">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10"></div>
+<span class="font-label-mono text-[12px] text-on-surface-variant">Format Output</span>
+</div>
+<div class="flex items-center gap-4 relative opacity-30">
+<div class="w-6 h-6 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10"></div>
+<span class="font-label-mono text-[12px] text-on-surface-variant">Final Review</span>
+</div>
+</div>
+</div>
+<!-- Sources Section Bottom -->
+<div class="h-64 border-t border-white/5 bg-surface-container-high/30 p-4 flex flex-col gap-3">
+<span class="font-label-mono text-[11px] text-outline uppercase tracking-wider mb-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">library_books</span>
+                    Sources in context
+                </span>
+<!-- Source Card 1 -->
+<div class="glass-panel p-2.5 rounded-lg relative overflow-hidden group cursor-pointer border-t-[2px] border-t-primary-container">
+<div class="flex flex-col gap-1 relative z-10">
+<span class="font-display text-[13px] text-on-surface leading-tight line-clamp-1 group-hover:text-primary-fixed-dim transition-colors">Scaling Laws for Neural Language Models</span>
+<div class="flex justify-between items-center mt-1">
+<span class="font-body-md text-[11px] text-outline">Kaplan et al.</span>
+<span class="font-label-mono text-[9px] px-1.5 py-0.5 rounded bg-[#C1432E]/20 text-[#C1432E] border border-[#C1432E]/30">arXiv:2001.08361</span>
+</div>
+</div>
+</div>
+<!-- Source Card 2 -->
+<div class="glass-panel p-2.5 rounded-lg relative overflow-hidden group cursor-pointer border-t-[2px] border-t-secondary-container">
+<div class="flex flex-col gap-1 relative z-10">
+<span class="font-display text-[13px] text-on-surface leading-tight line-clamp-1 group-hover:text-primary-fixed-dim transition-colors">Training Compute-Optimal LLMs</span>
+<div class="flex justify-between items-center mt-1">
+<span class="font-body-md text-[11px] text-outline">Hoffmann et al.</span>
+<span class="font-label-mono text-[9px] px-1.5 py-0.5 rounded bg-[#C1432E]/20 text-[#C1432E] border border-[#C1432E]/30">arXiv:2203.15556</span>
+</div>
+</div>
+</div>
+<!-- Source Card 3 -->
+<div class="glass-panel p-2.5 rounded-lg relative overflow-hidden group cursor-pointer">
+<div class="flex flex-col gap-1 relative z-10">
+<span class="font-display text-[13px] text-on-surface leading-tight line-clamp-1 group-hover:text-primary-fixed-dim transition-colors">Emergent Abilities of Large Language Models</span>
+<div class="flex justify-between items-center mt-1">
+<span class="font-body-md text-[11px] text-outline">Wei et al.</span>
+<span class="font-label-mono text-[9px] px-1.5 py-0.5 rounded bg-[#C1432E]/20 text-[#C1432E] border border-[#C1432E]/30">arXiv:2206.07682</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Simple script to draw a visual thread line from the hovered chip to the right panel active node
+        // In a real application, this would use absolute positioning calculations or Canvas
+        // Here we just add a visual cue class for atmosphere
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const hoverChip = document.getElementById('hover-chip');
+            if (hoverChip) {
+                // Add a subtle glowing effect to simulate connection
+                setInterval(() => {
+                    hoverChip.style.boxShadow = `0 ${4 + Math.random()*4}px ${8 + Math.random()*8}px rgba(139,128,255, ${0.4 + Math.random()*0.2})`;
+                }, 2000);
+            }
+        });
+    </script>
+</body></html>

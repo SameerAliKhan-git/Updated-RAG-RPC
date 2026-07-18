@@ -10,18 +10,17 @@ Endpoints:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from src.dependencies import get_db_session, get_opensearch, get_redis
 from src.middleware.auth import verify_api_key
 from src.middleware.rate_limiter import rate_limiter
+from src.services.guardrails import sanitize_query
 from src.schemas.ask import (
     AgenticResponse,
     AskRequest,
@@ -60,64 +59,42 @@ async def ask_agentic(
 ):
     """Run the full agentic RAG pipeline."""
     from src.agents.rag_graph import ask_corpus
-    from src.agents.tools import AgentToolkit
-    from src.retrieval.hybrid_search import HybridSearchService
-    from src.retrieval.reranker import create_reranker
 
-    # Build the toolkit for this request
-    search_service = HybridSearchService(opensearch)
-    reranker = create_reranker()
-    toolkit = AgentToolkit(
-        search_service=search_service,
-        reranker=reranker,
-        db_session=db_session,
-        redis_client=redis,
-    )
-
-    # Load session history from Redis if session_id provided
-    conversation_history = []
+    query, _flags = sanitize_query(body.query)
+    toolkit, search_service, reranker = _build_toolkit(db_session, opensearch, redis)
     session_id = body.session_id or str(uuid.uuid4())
-    if body.session_id and redis:
-        try:
-            stored = await redis.get(f"corpus:session:{session_id}")
-            if stored:
-                conversation_history = json.loads(stored)
-        except Exception as e:
-            logger.warning(f"Failed to load session: {e}")
+    conversation_history = await _load_history(redis, body.session_id, session_id)
 
-    result = await ask_corpus(
-        query=body.query,
-        toolkit=toolkit,
-        session_id=session_id,
-        conversation_history=conversation_history,
-    )
+    try:
+        # Semantic cache: only for fresh (non-follow-up) questions
+        cached, query_embedding = await _semantic_cache_lookup(
+            redis, search_service, query, conversation_history
+        )
+        if cached is not None:
+            return AgenticResponse(**{**cached, "session_id": session_id, "cached": True})
 
-    # Build response
-    citations = []
-    for c in result.get("citations", []):
-        citations.append(Citation(
-            id=c.get("id", 0),
-            paper_title=c.get("paper_title", ""),
-            authors=c.get("authors", []),
-            arxiv_id=c.get("arxiv_id", ""),
-            arxiv_url=c.get("arxiv_url", ""),
-            pdf_url=c.get("pdf_url", ""),
-            section=c.get("section", ""),
-            snippet=c.get("snippet", ""),
-        ))
+        result = await ask_corpus(
+            query=query,
+            toolkit=toolkit,
+            session_id=session_id,
+            conversation_history=conversation_history,
+            filters=body.filters,
+        )
 
-    # Clean up
-    await search_service.close()
-    await reranker.close()
+        response = AgenticResponse(
+            answer_markdown=result.get("answer_markdown", ""),
+            citations=[_to_citation(c) for c in result.get("citations", [])],
+            grounding_note=result.get("grounding_note", ""),
+            query_type=result.get("query_type", ""),
+            session_id=session_id,
+            trace_events=result.get("trace_events", []),
+        )
 
-    return AgenticResponse(
-        answer_markdown=result.get("answer_markdown", ""),
-        citations=citations,
-        grounding_note=result.get("grounding_note", ""),
-        query_type=result.get("query_type", ""),
-        session_id=session_id,
-        trace_events=result.get("trace_events", []),
-    )
+        await _semantic_cache_store(redis, query, query_embedding, result)
+        return response
+    finally:
+        await search_service.close()
+        await reranker.close()
 
 
 # ── POST /stream ────────────────────────────────────────────────
@@ -136,69 +113,69 @@ async def stream_ask(
     opensearch=Depends(get_opensearch),
     redis=Depends(get_redis),
 ):
-    """Stream the agentic RAG pipeline via Server-Sent Events."""
+    """Stream the agentic RAG pipeline via Server-Sent Events.
+
+    Tokens are emitted live as the LLM generates them; trace events arrive
+    per-node as the graph executes. The final `done` event carries the
+    post-verification answer — clients reconcile by replacing streamed content.
+    """
 
     async def event_generator():
-        from src.agents.rag_graph import ask_corpus
-        from src.agents.tools import AgentToolkit
-        from src.retrieval.hybrid_search import HybridSearchService
-        from src.retrieval.reranker import create_reranker
+        from src.agents.rag_graph import ask_corpus_streaming
 
-        search_service = HybridSearchService(opensearch)
-        reranker = create_reranker()
-        toolkit = AgentToolkit(
-            search_service=search_service,
-            reranker=reranker,
-            db_session=db_session,
-            redis_client=redis,
-        )
-
+        query, _flags = sanitize_query(body.query)
+        toolkit, search_service, reranker = _build_toolkit(db_session, opensearch, redis)
         session_id = body.session_id or str(uuid.uuid4())
-        conversation_history = []
-        if body.session_id and redis:
-            try:
-                stored = await redis.get(f"corpus:session:{session_id}")
-                if stored:
-                    conversation_history = json.loads(stored)
-            except Exception:
-                pass
+        conversation_history = await _load_history(redis, body.session_id, session_id)
 
-        # Send initial event
         yield _sse_event("trace", {"step": "starting agentic pipeline..."})
 
         try:
-            result = await ask_corpus(
-                query=body.query,
+            # Semantic cache: replay a cached answer instantly for near-duplicate questions
+            cached, query_embedding = await _semantic_cache_lookup(
+                redis, search_service, query, conversation_history
+            )
+            if cached is not None:
+                yield _sse_event("trace", {"step": "semantic cache hit — serving cached answer"})
+                yield _sse_event("token", {"text": cached.get("answer_markdown", "")})
+                for citation in cached.get("citations", []):
+                    yield _sse_event("citation", citation)
+                yield _sse_event("done", {**cached, "session_id": session_id, "cached": True})
+                return
+
+            result = None
+            async for event in ask_corpus_streaming(
+                query=query,
                 toolkit=toolkit,
                 session_id=session_id,
                 conversation_history=conversation_history,
-            )
+                filters=body.filters,
+            ):
+                etype = event.get("type")
+                if etype == "trace":
+                    yield _sse_event("trace", {"step": event.get("step", "")})
+                elif etype == "token":
+                    yield _sse_event("token", {"text": event.get("text", "")})
+                elif etype == "error":
+                    yield _sse_event("error", {"message": event.get("message", "")})
+                elif etype == "done":
+                    result = event.get("result", {})
 
-            # Stream trace events
-            for trace in result.get("trace_events", []):
-                yield _sse_event("trace", {"step": trace})
-                await asyncio.sleep(0.05)  # Small delay for SSE client rendering
-
-            # Stream the answer
-            answer = result.get("answer_markdown", "")
-            # Send in chunks of ~50 chars for streaming effect
-            for i in range(0, len(answer), 50):
-                chunk = answer[i : i + 50]
-                yield _sse_event("token", {"text": chunk})
-                await asyncio.sleep(0.02)
-
-            # Stream citations
-            for citation in result.get("citations", []):
-                yield _sse_event("citation", citation)
-
-            # Final done event with full response
-            yield _sse_event("done", {
-                "answer_markdown": answer,
-                "citations": result.get("citations", []),
-                "grounding_note": result.get("grounding_note", ""),
-                "query_type": result.get("query_type", ""),
-                "session_id": session_id,
-            })
+            if result is not None:
+                for citation in result.get("citations", []):
+                    yield _sse_event("citation", citation)
+                yield _sse_event(
+                    "done",
+                    {
+                        "answer_markdown": result.get("answer_markdown", ""),
+                        "citations": result.get("citations", []),
+                        "grounding_note": result.get("grounding_note", ""),
+                        "query_type": result.get("query_type", ""),
+                        "session_id": session_id,
+                        "cached": False,
+                    },
+                )
+                await _semantic_cache_store(redis, query, query_embedding, result)
 
         except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
@@ -278,37 +255,45 @@ async def search(
 async def list_papers(
     page: int = 1,
     per_page: int = 20,
+    search: str | None = None,
     db_session=Depends(get_db_session),
 ):
-    """List all ingested papers with pagination."""
-    from sqlalchemy import desc, func
+    """List all ingested papers with pagination and optional text search."""
+    from sqlalchemy import String as SqlString
+    from sqlalchemy import cast, desc, func
 
     from src.models.paper import Chunk, Paper
 
-    total = db_session.query(func.count(Paper.id)).scalar() or 0
+    query_builder = db_session.query(Paper)
+    if search:
+        search_term = f"%{search}%"
+        query_builder = query_builder.filter(
+            Paper.title.ilike(search_term)
+            | Paper.abstract.ilike(search_term)
+            | cast(Paper.authors, SqlString).ilike(search_term)
+            | cast(Paper.categories, SqlString).ilike(search_term)
+        )
+
+    total = query_builder.count()
     offset = (page - 1) * per_page
 
-    papers = (
-        db_session.query(Paper)
-        .order_by(desc(Paper.published_date))
-        .offset(offset)
-        .limit(per_page)
-        .all()
-    )
+    papers = query_builder.order_by(desc(Paper.published_date)).offset(offset).limit(per_page).all()
 
     summaries = []
     for p in papers:
         chunk_count = db_session.query(func.count(Chunk.id)).filter(Chunk.paper_id == p.id).scalar() or 0
-        summaries.append(PaperSummary(
-            arxiv_id=p.arxiv_id,
-            title=p.title,
-            authors=p.authors if p.authors else [],
-            abstract=p.abstract[:300] if p.abstract else "",
-            published_date=str(p.published_date) if p.published_date else "",
-            categories=p.categories if p.categories else [],
-            pdf_processed=p.pdf_processed,
-            chunk_count=chunk_count,
-        ))
+        summaries.append(
+            PaperSummary(
+                arxiv_id=p.arxiv_id,
+                title=p.title,
+                authors=p.authors if p.authors else [],
+                abstract=p.abstract[:300] if p.abstract else "",
+                published_date=str(p.published_date) if p.published_date else "",
+                categories=p.categories if p.categories else [],
+                pdf_processed=p.pdf_processed,
+                chunk_count=chunk_count,
+            )
+        )
 
     return PaperListResponse(papers=summaries, total=total, page=page, per_page=per_page)
 
@@ -356,9 +341,256 @@ async def get_paper(
     }
 
 
+# ── GET /papers/{arxiv_id}/pdf ──────────────────────────────────
+
+
+@router.get(
+    "/papers/{arxiv_id}/pdf",
+    summary="Serve a paper's PDF for the in-app viewer",
+)
+async def get_paper_pdf(
+    arxiv_id: str,
+    db_session=Depends(get_db_session),
+):
+    """Stream the locally cached PDF; fall back to redirecting to the arXiv copy."""
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse, RedirectResponse
+
+    from src.config import get_settings
+    from src.models.paper import Paper
+
+    safe_id = arxiv_id.replace("/", "_")
+    if ".." in safe_id or "\\" in safe_id:
+        raise HTTPException(status_code=400, detail="Invalid paper id.")
+
+    pdf_path = Path(get_settings().arxiv.pdf_cache_dir) / f"{safe_id}.pdf"
+    if pdf_path.exists():
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            content_disposition_type="inline",
+            filename=f"{safe_id}.pdf",
+        )
+
+    paper = db_session.query(Paper).filter(Paper.arxiv_id == arxiv_id).first()
+    if paper and str(paper.pdf_url).startswith("http"):
+        return RedirectResponse(paper.pdf_url)
+    raise HTTPException(status_code=404, detail=f"No PDF available for {arxiv_id}.")
+
+
+# ── POST /papers/extract-metadata ────────────────────────────────
+
+
+@router.post(
+    "/papers/extract-metadata",
+    summary="Extract metadata (title, authors, abstract) from an uploaded PDF",
+)
+async def extract_metadata(
+    file: UploadFile = File(...),
+):
+    """Parse first page of PDF and return extracted title, authors, abstract."""
+    import tempfile
+    from pathlib import Path
+
+    from src.ingestion.pdf_parser import DoclingParserService
+
+    temp_dir = tempfile.gettempdir()
+    temp_path = Path(temp_dir) / (file.filename or "upload.pdf")
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(await file.read())
+
+        parser = DoclingParserService()
+        metadata = parser.extract_metadata(temp_path)
+        return {
+            "title": metadata.get("title", ""),
+            "authors": metadata.get("authors", []),
+            "abstract": metadata.get("abstract", ""),
+        }
+    except Exception as e:
+        logger.error(f"Metadata extraction failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Metadata extraction failed: {str(e)}") from e
+    finally:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            if temp_path.exists():
+                temp_path.unlink()
+
+
+# ── POST /papers/upload ──────────────────────────────────────────
+
+
+@router.post(
+    "/papers/upload",
+    summary="Upload and ingest a custom PDF paper",
+)
+async def upload_paper(
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    authors: str = Form(""),
+    abstract: str = Form(""),
+    categories: str = Form(""),
+    db_session=Depends(get_db_session),
+    opensearch=Depends(get_opensearch),
+):
+    """Parse and index an uploaded PDF paper.
+
+    Title and authors are optional — if omitted, they will be auto-extracted
+    from the PDF's first page using layout analysis.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from src.ingestion.orchestrator import IngestionOrchestrator
+
+    # Save to temp file
+    temp_dir = tempfile.gettempdir()
+    temp_path = Path(temp_dir) / (file.filename or "upload.pdf")
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(await file.read())
+
+        # Auto-extract metadata if title or authors not provided
+        if not title.strip() or not authors.strip():
+            from src.ingestion.pdf_parser import DoclingParserService
+
+            parser = DoclingParserService()
+            extracted = parser.extract_metadata(temp_path)
+            if not title.strip():
+                title = extracted.get("title", "Untitled Document")
+            if not authors.strip():
+                authors = ", ".join(extracted.get("authors", ["Unknown Author"]))
+            if not abstract.strip():
+                abstract = extracted.get("abstract", "")
+
+        # Clean author/category formatting
+        author_list = [a.strip() for a in authors.split(",") if a.strip()]
+        category_list = [c.strip() for c in categories.split(",") if c.strip()]
+
+        orchestrator = IngestionOrchestrator(db_session, opensearch)
+        stats = await orchestrator.ingest_local_pdf(
+            pdf_path=temp_path,
+            title=title,
+            authors=author_list,
+            abstract=abstract,
+            categories=category_list,
+        )
+        return {"status": "success", "stats": stats}
+    except Exception as e:
+        logger.error(f"Failed to ingest uploaded paper: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    finally:
+        import contextlib
+
+        # Clean up temp file
+        with contextlib.suppress(Exception):
+            if temp_path.exists():
+                temp_path.unlink()
+
+
 # ── Helpers ──────────────────────────────────────────────────────
 
 
 def _sse_event(event_type: str, data: dict) -> str:
     """Format a Server-Sent Event."""
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+def _build_toolkit(db_session, opensearch, redis):
+    """Construct the per-request agent toolkit plus the services that need closing."""
+    from src.agents.tools import AgentToolkit
+    from src.retrieval.hybrid_search import HybridSearchService
+    from src.retrieval.reranker import create_reranker
+
+    search_service = HybridSearchService(opensearch)
+    reranker = create_reranker()
+    toolkit = AgentToolkit(
+        search_service=search_service,
+        reranker=reranker,
+        db_session=db_session,
+        redis_client=redis,
+    )
+    return toolkit, search_service, reranker
+
+
+async def _load_history(redis, provided_session_id: str | None, session_id: str) -> list[dict[str, str]]:
+    """Load conversation history for an existing session."""
+    if not provided_session_id or not redis:
+        return []
+    try:
+        stored = await redis.get(f"corpus:session:{session_id}")
+        if stored:
+            return json.loads(stored)
+    except Exception as e:
+        logger.warning(f"Failed to load session: {e}")
+    return []
+
+
+def _to_citation(c: dict) -> Citation:
+    """Map a raw citation dict from the graph onto the API schema."""
+    return Citation(
+        id=c.get("id", 0),
+        paper_title=c.get("paper_title", ""),
+        authors=c.get("authors", []),
+        arxiv_id=c.get("arxiv_id", ""),
+        arxiv_url=c.get("arxiv_url", ""),
+        pdf_url=c.get("pdf_url", ""),
+        section=c.get("section", ""),
+        snippet=c.get("snippet", ""),
+    )
+
+
+async def _semantic_cache_lookup(
+    redis, search_service, query: str, conversation_history: list
+) -> tuple[dict | None, list[float] | None]:
+    """Check the semantic cache for a near-duplicate fresh question.
+
+    Returns (cached_response, query_embedding). Follow-ups are context-dependent
+    and are never served from cache. The embedding is returned for reuse when
+    storing the eventual answer.
+    """
+    from src.config import get_settings
+    from src.services.redis_services import RedisServicesManager
+
+    settings = get_settings()
+    if not settings.semantic_cache_enabled or redis is None or conversation_history:
+        return None, None
+
+    try:
+        from src.middleware.metrics import SEMANTIC_CACHE_HITS, SEMANTIC_CACHE_MISSES
+
+        query_embedding = await search_service.embeddings_client.embed_query(query)
+        cached = await RedisServicesManager(redis).get_semantic_cache(
+            query_embedding, threshold=settings.semantic_cache_threshold
+        )
+        (SEMANTIC_CACHE_HITS if cached is not None else SEMANTIC_CACHE_MISSES).inc()
+        return cached, query_embedding
+    except Exception as e:
+        logger.warning(f"Semantic cache lookup failed: {e}")
+        return None, None
+
+
+async def _semantic_cache_store(redis, query: str, query_embedding: list[float] | None, result: dict) -> None:
+    """Persist a successful, non-casual answer to the semantic cache."""
+    if redis is None or query_embedding is None:
+        return
+    if result.get("query_type") == "casual" or not result.get("answer_markdown"):
+        return
+    try:
+        from src.services.redis_services import RedisServicesManager
+
+        await RedisServicesManager(redis).set_semantic_cache(
+            query=query,
+            query_embedding=query_embedding,
+            response={
+                "answer_markdown": result.get("answer_markdown", ""),
+                "citations": result.get("citations", []),
+                "grounding_note": result.get("grounding_note", ""),
+                "query_type": result.get("query_type", ""),
+                "trace_events": result.get("trace_events", []),
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Semantic cache store failed: {e}")

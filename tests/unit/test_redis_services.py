@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -42,10 +42,13 @@ async def test_semantic_cache_hit_and_miss():
     cached_entry = {
         "query": "cached query",
         "embedding": [0.5, 0.5, 0.0, 0.0],
-        "response": {"answer_markdown": "cached answer"}
+        "response": {"answer_markdown": "cached answer"},
     }
 
-    mock_redis.keys.return_value = ["corpus:semcache:uuid1"]
+    async def fake_scan_iter(match=None, count=None):
+        yield "corpus:semcache:uuid1"
+
+    mock_redis.scan_iter = fake_scan_iter
     mock_redis.get.return_value = json.dumps(cached_entry)
 
     manager = RedisServicesManager(mock_redis)

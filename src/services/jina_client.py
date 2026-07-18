@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import List
 
 import httpx
 
@@ -16,7 +15,7 @@ class JinaEmbeddingsClient:
     def __init__(self):
         self.settings = get_settings()
         self.base_url = "https://api.jina.ai/v1"
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Instantiate or retrieve async http client."""
@@ -30,7 +29,7 @@ class JinaEmbeddingsClient:
             )
         return self._client
 
-    async def embed_passages(self, texts: List[str]) -> List[List[float]]:
+    async def embed_passages(self, texts: list[str]) -> list[list[float]]:
         """Generate high-dimension embeddings using the Jina retrieval task adapter.
 
         If Jina API key is missing, defaults to structured dummy vector representations to enable testing.
@@ -64,7 +63,7 @@ class JinaEmbeddingsClient:
             logger.error(f"Failed Jina Embeddings API call: {e}")
             raise RuntimeError("Embeddings generation failed.") from e
 
-    async def embed_query(self, query: str) -> List[float]:
+    async def embed_query(self, query: str) -> list[float]:
         """Generate a single query embedding using the Jina query task adapter.
 
         Uses 'retrieval.query' task for asymmetric embedding (query vs passages).

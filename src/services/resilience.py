@@ -10,7 +10,7 @@ import asyncio
 import functools
 import logging
 import time
-from typing import Any, Callable, Dict, Type
+from collections.abc import Callable
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -24,9 +24,10 @@ def with_retry(
     max_attempts: int = 3,
     min_seconds: float = 1.0,
     max_seconds: float = 10.0,
-    exceptions: tuple[Type[BaseException], ...] = (Exception,),
+    exceptions: tuple[type[BaseException], ...] = (Exception,),
 ):
     """Decorator to retry a function with exponential backoff on specified exceptions."""
+
     def decorator(func):
         @retry(
             stop=stop_after_attempt(max_attempts),
@@ -43,7 +44,9 @@ def with_retry(
             if asyncio.iscoroutinefunction(func):
                 return await func(*args, **kwargs)
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -52,6 +55,7 @@ def with_retry(
 
 class CircuitBreakerOpenException(Exception):
     """Exception raised when the circuit breaker is open."""
+
     pass
 
 

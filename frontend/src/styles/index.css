@@ -1,0 +1,269 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+
+/* ─── Gemini design tokens ─────────────────────────────────────────
+   Light + dark surfaces, Google four-color accents, and the signature
+   gradient with a sharp blue leading edge diffusing toward the tail. */
+
+:root {
+  --g-blue: #4285f4;
+  --g-red: #ea4335;
+  --g-yellow: #fbbc04;
+  --g-green: #34a853;
+
+  --bg: #ffffff;
+  --surface: #f0f4f9;
+  --surface-2: #e9eef6;
+  --surface-3: #dde3ea;
+  --text: #1f1f1f;
+  --text-secondary: #575b5f;
+  --text-tertiary: #747775;
+  --border: #e1e6ed;
+  --accent: #0b57d0;
+  --accent-soft: #d3e3fd;
+  --scrim: rgba(31, 31, 31, 0.4);
+
+  --gradient-gemini: linear-gradient(
+    74deg,
+    #4285f4 0%,
+    #9b72cb 35%,
+    #d96570 60%,
+    rgba(217, 101, 112, 0) 100%
+  );
+  --gradient-gemini-solid: linear-gradient(74deg, #4285f4 0%, #9b72cb 50%, #d96570 100%);
+
+  --radius-pill: 9999px;
+  --radius-card: 24px;
+  --radius-chip: 16px;
+
+  --ease-gemini: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  --bg: #131314;
+  --surface: #1e1f20;
+  --surface-2: #282a2c;
+  --surface-3: #333537;
+  --text: #e3e3e3;
+  --text-secondary: #bdc1c6;
+  --text-tertiary: #9aa0a6;
+  --border: #333537;
+  --accent: #a8c7fa;
+  --accent-soft: #0842a0;
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+@theme {
+  --font-display: "Outfit", "Inter Variable", system-ui, sans-serif;
+  --font-body: "Inter Variable", system-ui, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  transition: background-color 240ms var(--ease-gemini), color 240ms var(--ease-gemini);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Gradient utilities ─── */
+
+.gradient-text {
+  background: var(--gradient-gemini-solid);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--text-tertiary) 0%,
+    #4285f4 25%,
+    #9b72cb 45%,
+    #d96570 60%,
+    var(--text-tertiary) 80%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-sweep 1.8s linear infinite;
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Soft ethereal blurred blobs behind the greeting */
+.gemini-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .gemini-blob {
+  opacity: 0.12;
+}
+
+/* Radial ripple on send */
+@keyframes ripple {
+  from {
+    transform: scale(0.4);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 700ms var(--ease-gemini) forwards;
+}
+
+/* Blinking token cursor */
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.token-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background: var(--gradient-gemini-solid);
+  animation: cursor-blink 1s step-end infinite;
+}
+
+/* Markdown body styling inside assistant messages */
+.prose-answer {
+  line-height: 1.7;
+  font-size: 0.9375rem;
+}
+.prose-answer h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1.4em 0 0.5em;
+}
+.prose-answer h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.2em 0 0.4em;
+}
+.prose-answer p {
+  margin: 0.6em 0;
+}
+.prose-answer ul,
+.prose-answer ol {
+  margin: 0.6em 0;
+  padding-left: 1.4em;
+}
+.prose-answer ul {
+  list-style: disc;
+}
+.prose-answer ol {
+  list-style: decimal;
+}
+.prose-answer li {
+  margin: 0.25em 0;
+}
+.prose-answer blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.9em;
+  margin: 0.8em 0;
+  color: var(--text-secondary);
+}
+.prose-answer code {
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.prose-answer pre {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+.prose-answer pre code {
+  background: none;
+  padding: 0;
+}
+.prose-answer table {
+  border-collapse: collapse;
+  margin: 0.9em 0;
+  width: 100%;
+  font-size: 0.875rem;
+}
+.prose-answer th,
+.prose-answer td {
+  border: 1px solid var(--border);
+  padding: 0.45em 0.7em;
+  text-align: left;
+}
+.prose-answer th {
+  background: var(--surface);
+  font-weight: 600;
+}
+.prose-answer a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.prose-answer strong {
+  font-weight: 600;
+}
+
+/* Scrollbars that match the surfaces */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gradient-shimmer,
+  .animate-ripple,
+  .token-cursor::after {
+    animation: none;
+  }
+}
+
+/* Responsive PDF Panel shadow and overrides */
+.pdf-panel-responsive {
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.35);
+}
+@media (min-width: 1024px) {
+  .pdf-panel-responsive {
+    box-shadow: none !important;
+  }
+}
+

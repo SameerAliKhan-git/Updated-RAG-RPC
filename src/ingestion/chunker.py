@@ -3,10 +3,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from typing import List
 
 from src.config import get_settings
-from src.ingestion.pdf_parser import ParsedDocument, ParsedElement, ParsedSection
+from src.ingestion.pdf_parser import ParsedDocument, ParsedSection
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +39,12 @@ class StructureAwareChunker:
     def generate_chunk_id(self, paper_id: str, section_title: str, chunk_index: int, text: str) -> str:
         """Create a stable, unique chunk identifier based on a hash of text and metadata."""
         hasher = hashlib.sha256()
-        hasher.update(f"{paper_id}_{section_title}_{chunk_index}_{text}".encode("utf-8"))
+        hasher.update(f"{paper_id}_{section_title}_{chunk_index}_{text}".encode())
         return hasher.hexdigest()
 
-    def chunk_document(self, doc: ParsedDocument, paper_id: str, arxiv_id: str) -> List[IngestedChunk]:
+    def chunk_document(self, doc: ParsedDocument, paper_id: str, arxiv_id: str) -> list[IngestedChunk]:
         """Convert a ParsedDocument into a flat list of IngestedChunks."""
-        chunks: List[IngestedChunk] = []
+        chunks: list[IngestedChunk] = []
 
         # 1. Process Sections (Text Body chunks)
         for sec in doc.sections:
@@ -78,9 +77,9 @@ class StructureAwareChunker:
         logger.info(f"Chunked document {arxiv_id} into {len(chunks)} chunks.")
         return chunks
 
-    def _chunk_section(self, section: ParsedSection, paper_id: str, arxiv_id: str) -> List[IngestedChunk]:
+    def _chunk_section(self, section: ParsedSection, paper_id: str, arxiv_id: str) -> list[IngestedChunk]:
         """Split a single section into overlapping body text chunks using sentence boundaries."""
-        chunks: List[IngestedChunk] = []
+        chunks: list[IngestedChunk] = []
         text = section.text.strip()
         if not text:
             return []
@@ -92,7 +91,7 @@ class StructureAwareChunker:
         target_size = self.settings.chunking.chunk_size  # ~500 words/tokens
         overlap = self.settings.chunking.overlap_size  # ~75 words/tokens
 
-        current_sentences: List[str] = []
+        current_sentences: list[str] = []
         current_word_count = 0
         chunk_idx = 0
 

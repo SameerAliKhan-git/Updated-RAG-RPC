@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import create_engine
@@ -35,9 +35,9 @@ class MockPaperMetadata(PaperMetadata):
 
     @property
     def published_date(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        return datetime(2026, 1, 1, tzinfo=timezone.utc)
+        return datetime(2026, 1, 1, tzinfo=UTC)
 
     @property
     def categories(self) -> list[str]:

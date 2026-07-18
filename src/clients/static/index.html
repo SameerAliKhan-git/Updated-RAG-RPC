@@ -1,0 +1,2432 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Corpus AI — Ask your papers anything</title>
+<meta name="description" content="Agentic RAG system for research papers. Every answer, cited straight to the source."/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Marked.js for Markdown -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "surface-container-highest": "#353530",
+        "outline": "#928fa0",
+        "secondary-fixed": "#58fbda",
+        "surface-tint": "#c5c0ff",
+        "on-primary-container": "#20008e",
+        "on-tertiary-container": "#5a0600",
+        "surface-dim": "#13140f",
+        "on-secondary-container": "#005346",
+        "on-tertiary-fixed-variant": "#8a1b0b",
+        "secondary": "#44edcc",
+        "secondary-fixed-dim": "#2cdebe",
+        "error": "#ffb4ab",
+        "on-error": "#690005",
+        "surface-bright": "#393934",
+        "on-background": "#e4e2db",
+        "primary-container": "#8b80ff",
+        "on-surface-variant": "#c8c4d7",
+        "surface-container": "#1f201b",
+        "tertiary-container": "#ef644c",
+        "tertiary-fixed-dim": "#ffb4a6",
+        "on-primary-fixed": "#150067",
+        "surface-container-lowest": "#0e0f0a",
+        "primary": "#c5c0ff",
+        "inverse-on-surface": "#30312b",
+        "on-surface": "#e4e2db",
+        "secondary-container": "#00d0b1",
+        "on-error-container": "#ffdad6",
+        "primary-fixed": "#e4dfff",
+        "tertiary": "#ffb4a6",
+        "on-secondary-fixed-variant": "#005143",
+        "error-container": "#93000a",
+        "inverse-primary": "#5646d7",
+        "surface": "#13140f",
+        "outline-variant": "#474554",
+        "primary-fixed-dim": "#c5c0ff",
+        "inverse-surface": "#e4e2db",
+        "on-primary-fixed-variant": "#3d28bf",
+        "tertiary-fixed": "#ffdad3",
+        "surface-variant": "#353530",
+        "on-secondary-fixed": "#00201a",
+        "surface-container-low": "#1b1c17",
+        "on-secondary": "#00382e",
+        "on-primary": "#2600a1",
+        "on-tertiary-fixed": "#3f0300",
+        "surface-container-high": "#2a2a25",
+        "on-tertiary": "#660800",
+        "background": "#13140f"
+      },
+      fontFamily: {
+        "body-lg": ["Plus Jakarta Sans", "sans-serif"],
+        "body-md": ["Plus Jakarta Sans", "sans-serif"],
+        "display": ["Fraunces", "serif"],
+        "label-sm": ["Plus Jakarta Sans", "sans-serif"],
+        "headline-lg": ["Fraunces", "serif"],
+        "headline-lg-mobile": ["Fraunces", "serif"],
+        "label-mono": ["IBM Plex Mono", "monospace"]
+      },
+      fontSize: {
+        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+        "display": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "600" }],
+        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+        "headline-lg-mobile": ["24px", { "lineHeight": "1.2", "fontWeight": "500" }],
+        "label-mono": ["13px", { "lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "500" }]
+      },
+      borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+      spacing: { "unit": "8px", "panel-gap": "12px", "gutter": "16px", "container-padding": "24px" }
+    }
+  }
+};
+</script>
+<style>
+  body { background-color: #06080d; color: #e4e2db; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+  /* Custom scrollbar for webkit */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(120, 94, 240, 0.15); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(120, 94, 240, 0.3); }
+
+  /* Glass Panels */
+  .glass-panel {
+    background: rgba(10, 13, 20, 0.65);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .glass-panel:hover {
+    border-color: rgba(120, 94, 240, 0.35);
+    box-shadow: 0 8px 32px 0 rgba(120, 94, 240, 0.08);
+  }
+
+  .floating-panel {
+    background: rgba(10, 13, 20, 0.85);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+  }
+
+  .primary-gradient-text {
+    background: linear-gradient(to right, #785ef0, #c5c0ff, #58fbda);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .primary-gradient-bg { background: linear-gradient(to right, #785ef0, #c5c0ff, #58fbda); }
+  .gradient-btn {
+    background: linear-gradient(135deg, #785ef0, #58fbda);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 14px rgba(120, 94, 240, 0.35);
+  }
+  .gradient-btn:hover {
+    box-shadow: 0 6px 20px rgba(120, 94, 240, 0.5);
+    filter: brightness(1.08);
+  }
+
+  /* Glow Effects */
+  .input-glow:focus-within {
+    box-shadow: 0 0 20px rgba(120, 94, 240, 0.2);
+    border-color: rgba(120, 94, 240, 0.4) !important;
+  }
+  .search-glow:focus-within {
+    box-shadow: 0 0 20px rgba(120, 94, 240, 0.2);
+    border-color: rgba(120, 94, 240, 0.4);
+  }
+
+  /* Orbs & Threads */
+  .thinking-orb {
+    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    background: linear-gradient(135deg, #8b80ff, #00d0b1);
+    filter: blur(8px); animation: pulse-orb 2s infinite ease-in-out; z-index: -1;
+  }
+  @keyframes pulse-orb {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+    100% { transform: scale(0.8); opacity: 0.5; }
+  }
+
+  .node-active-glow { box-shadow: 0 0 15px 5px rgba(139, 128, 255, 0.3); }
+
+  .trace-thread {
+    position: absolute; left: 50%; transform: translateX(-50%); width: 2px;
+    background: rgba(255, 255, 255, 0.08); z-index: 0;
+  }
+  .trace-thread-active {
+    background: linear-gradient(to bottom, #00d0b1, #8b80ff);
+    box-shadow: 0 0 8px #8b80ff;
+  }
+
+  .pulse-amber { animation: pulseAmber 2s infinite; }
+  @keyframes pulseAmber {
+    0% { box-shadow: 0 0 0 0 rgba(239, 100, 76, 0.7); }
+    70% { box-shadow: 0 0 0 6px rgba(239, 100, 76, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 100, 76, 0); }
+  }
+
+  .popover-shadow { box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+
+  /* Animations */
+  @keyframes fadeSlideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes typingCursor { 0%,100% { opacity:1; } 50% { opacity:0; } }
+  @keyframes cardIn { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+
+  .animate-fade-up { animation: fadeSlideUp 0.4s ease both; }
+  .animate-card-in { animation: cardIn 0.35s ease both; }
+
+  /* Citation Chips */
+  .cite-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-gradient-to-r from-[#c5c0ff] to-[#58fbda] text-on-primary-container
+    shadow-[0_2px_4px_rgba(0,0,0,0.3)] cursor-pointer hover:opacity-90 transition-all border border-white/20 relative z-10;
+    margin: 0 2px;
+  }
+
+  /* Answer Typography */
+  .answer-body h2 { font-family: 'Fraunces', serif; font-size: 1.25rem; font-weight: 600; color: #e4e2db; margin: 1.2rem 0 0.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .answer-body h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.05rem; font-weight: 600; color: #c8c4d7; margin: 1rem 0 0.4rem; }
+  .answer-body strong { color: #e4e2db; font-weight: 600; }
+  .answer-body blockquote { border-left: 3px solid #8b80ff; background: rgba(139,128,255,0.06); margin: 0.8rem 0; padding: 0.6rem 1rem; border-radius: 0 8px 8px 0; font-style: italic; color: #c8c4d7; }
+  .answer-body code { background: #1f201b; color: #44edcc; padding: 2px 6px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85em; }
+  .answer-body pre { background: #0e0f0a; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 0.8rem 0; }
+  .answer-body pre code { background: transparent; padding: 0; color: #c8c4d7; }
+  .answer-body table { width: 100%; border-collapse: collapse; margin: 0.8rem 0; font-size: 0.92rem; }
+  .answer-body th { background: #1f201b; color: #c5c0ff; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 2px solid #353530; font-family: 'IBM Plex Mono', monospace; }
+  .answer-body td { padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: #c8c4d7; }
+  .answer-body tr:hover td { background: rgba(139,128,255,0.04); }
+  .answer-body ul, .answer-body ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+  .answer-body li { margin-bottom: 0.3rem; }
+  .answer-body p { margin-bottom: 0.8rem; line-height: 1.7; }
+
+  /* Drawer & Bottom Sheet Transitions */
+  #mobile-drawer {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+  #mobile-drawer.open {
+    transform: translateX(0);
+  }
+  #mobile-trace-sheet {
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  #mobile-trace-sheet.open {
+    transform: translateY(0);
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Constellation line flow animation */
+  @keyframes flowLine {
+    to {
+      stroke-dashoffset: -20;
+    }
+  }
+  .line-flow-animated {
+    animation: flowLine 1.2s linear infinite;
+  }
+  svg line {
+    transition: stroke 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), stroke-dasharray 0.6s ease, filter 0.6s ease;
+  }
+</style>
+
+</head>
+<body class="bg-background text-on-surface h-screen w-screen overflow-hidden font-body-md relative">
+
+<!-- WebGL Constellation Shader Background -->
+<div class="fixed inset-0 w-full h-full z-0 opacity-40 mix-blend-screen pointer-events-none" style="display:block;">
+  <canvas id="shader-canvas" style="display:block;width:100%;height:100%"></canvas>
+</div>
+
+<!-- TOP APP BAR -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-container-padding h-16 bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-sm transition-all duration-300 ease-in-out">
+  <div class="flex items-center gap-8">
+    <span class="font-display text-display text-primary tracking-tight text-[28px] cursor-pointer select-none" onclick="newThread()">Corpus</span>
+    <div class="hidden md:flex items-center gap-6 font-body-md text-body-md">
+      <button id="top-nav-library" class="text-outline hover:text-on-surface transition-colors cursor-pointer focus:outline-none" onclick="switchView('library')">Library</button>
+      <button id="top-nav-threads" class="text-outline hover:text-on-surface transition-colors cursor-pointer focus:outline-none" onclick="switchView('research')">Threads</button>
+    </div>
+  </div>
+  <div class="flex items-center gap-4 relative">
+    <button class="text-outline hover:text-on-surface hover:bg-white/5 transition-all active:scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+      <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+    </button>
+    <button class="text-outline hover:text-on-surface hover:bg-white/5 transition-all active:scale-95 duration-200 p-2 rounded-full flex items-center justify-center" onclick="switchView('settings')">
+      <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
+    </button>
+    <!-- System Status Toggle -->
+    <div class="relative ml-2 flex items-center">
+      <button class="relative flex items-center justify-center p-1 active:scale-95 transition-all duration-200 focus:outline-none rounded-full hover:bg-white/5" id="status-toggle" onclick="toggleStatusPopover(event)">
+        <div id="status-toggle-dot" class="w-3 h-3 rounded-full bg-secondary shadow-[0_0_8px_rgba(88,251,218,0.6)]"></div>
+      </button>
+      <!-- Popover menu -->
+      <div class="hidden absolute top-full right-0 mt-3 w-64 glass-panel rounded-xl popover-shadow p-4 z-50 opacity-0 transform translate-y-[-10px] transition-all duration-200" id="status-popover">
+        <h3 class="font-label-mono text-label-mono text-outline mb-3 uppercase tracking-wider text-[10px]">System Status</h3>
+        <ul class="space-y-3" id="status-list">
+          <li class="flex items-center justify-between text-sm">
+            <span class="font-body-md text-on-surface-variant">Postgres</span>
+            <div class="flex items-center gap-2">
+              <span class="font-label-mono text-[10px] text-secondary">OK</span>
+              <div class="w-2 h-2 rounded-full bg-secondary"></div>
+            </div>
+          </li>
+          <li class="flex items-center justify-between text-sm">
+            <span class="font-body-md text-on-surface-variant">Redis</span>
+            <div class="flex items-center gap-2">
+              <span class="font-label-mono text-[10px] text-secondary">OK</span>
+              <div class="w-2 h-2 rounded-full bg-secondary"></div>
+            </div>
+          </li>
+          <li class="flex items-center justify-between text-sm">
+            <span class="font-body-md text-on-surface-variant">OpenSearch</span>
+            <div class="flex items-center gap-2">
+              <span class="font-label-mono text-[10px] text-secondary">OK</span>
+              <div class="w-2 h-2 rounded-full bg-secondary"></div>
+            </div>
+          </li>
+          <li class="flex items-center justify-between text-sm">
+            <span class="font-body-md text-on-surface-variant">Model Router</span>
+            <div class="flex items-center gap-2">
+              <span class="font-label-mono text-[10px] text-secondary">OK</span>
+              <div class="w-2 h-2 rounded-full bg-secondary"></div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <img alt="User Avatar" class="w-8 h-8 rounded-full border border-white/10 ml-2" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAeASiDkmLcwQldXk_VgFlweC3zEfvkt2IHK_nPy6fHTLf3D-1IKdSeVZLYRdh86Et5NolsUMrIKimA1U120c2I02ToL6ZEAKbD3L4i-z5O5gmo0j8GDX7sSCXancOYx3DwnUL2Lob5kvhluOxTr5lWZSjEcxtSQW3ZclROr5udY2qb5gjrxZTNNuaw-ydNII9V33CIM7HkPbR9uhlrpHN-CjH43iE5FaRRULhxjlOmHK4XdiInrzOR"/>
+  </div>
+</nav>
+
+<!-- MOBILE NAVIGATION TOP BAR -->
+<header class="md:hidden fixed top-0 w-full z-50 flex justify-between items-center px-container-padding h-16 bg-surface/80 backdrop-blur-xl shadow-sm border-b border-white/10">
+  <button aria-label="Open Drawer" class="p-2 text-outline hover:text-on-surface transition-colors focus:outline-none" id="mobile-menu-btn" onclick="toggleMobileDrawer(true)">
+    <span class="material-symbols-outlined text-body-lg">menu</span>
+  </button>
+  <h1 class="font-display text-headline-lg-mobile text-primary tracking-tight cursor-pointer" onclick="newThread()">Corpus</h1>
+  <button aria-label="New Chat" class="p-2 text-outline hover:text-on-surface transition-colors focus:outline-none" onclick="newThread()">
+    <span class="material-symbols-outlined text-body-lg">edit_square</span>
+  </button>
+</header>
+
+
+<!-- MOBILE LEFT DRAWER -->
+<div class="fixed inset-y-0 left-0 w-[85%] max-w-sm z-50 glass-panel border-r border-white/5 flex flex-col pt-16 pb-8 transform -translate-x-full transition-transform duration-300 ease-in-out md:hidden" id="mobile-drawer" style="background: rgba(19, 21, 15, 0.95); backdrop-filter: blur(24px);">
+  <div class="px-container-padding py-4 border-b border-white/5">
+    <div class="font-display text-headline-lg-mobile text-primary">Corpus AI</div>
+    <div class="font-label-mono text-label-mono text-outline mt-1">v2.4 Agentic</div>
+  </div>
+  <div class="flex-grow overflow-y-auto px-2 py-panel-gap space-y-1">
+    <div class="px-4 py-2 mt-2 mb-1">
+      <span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Navigation</span>
+    </div>
+    <button onclick="toggleMobileDrawer(false); switchView('research')" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-outline hover:text-on-surface hover:bg-white/5 transition-all text-left focus:outline-none">
+      <span class="material-symbols-outlined">biotech</span>
+      <span class="font-body-md text-body-md">Research</span>
+    </button>
+    <button onclick="toggleMobileDrawer(false); switchView('library')" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-outline hover:text-on-surface hover:bg-white/5 transition-all text-left focus:outline-none">
+      <span class="material-symbols-outlined">database</span>
+      <span class="font-body-md text-body-md">Library</span>
+    </button>
+    <button onclick="toggleMobileDrawer(false); switchView('settings')" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-outline hover:text-on-surface hover:bg-white/5 transition-all text-left focus:outline-none">
+      <span class="material-symbols-outlined">settings</span>
+      <span class="font-body-md text-body-md">Settings</span>
+    </button>
+
+    <div class="px-4 py-2 mt-6 mb-1 border-t border-white/5 pt-4">
+      <span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Recent Sessions</span>
+    </div>
+    <!-- Thread List duplicated from desktop for consistency -->
+    <div id="mobile-thread-list" class="space-y-1">
+      <p class="font-body-md text-xs text-outline/40 px-4 py-2 italic select-none">No active threads</p>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer Overlay -->
+<div id="drawer-overlay" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity opacity-0" onclick="closeAllMobilePanels()"></div>
+
+<!-- Mobile Bottom Navigation (Mobile Only) -->
+<nav class="md:hidden flex justify-around items-center h-16 w-full fixed bottom-0 left-0 z-40 bg-surface-container/90 backdrop-blur-md border-t border-white/5">
+  <button onclick="switchView('research')" id="mobile-nav-research" class="flex flex-col items-center justify-center w-full h-full text-outline focus:outline-none">
+    <span class="material-symbols-outlined">biotech</span>
+    <span class="font-label-sm text-[10px] mt-1">Research</span>
+  </button>
+  <button onclick="switchView('library')" id="mobile-nav-library" class="flex flex-col items-center justify-center w-full h-full text-outline focus:outline-none">
+    <span class="material-symbols-outlined">database</span>
+    <span class="font-label-sm text-[10px] mt-1">Library</span>
+  </button>
+  <button onclick="switchView('settings')" id="mobile-nav-settings" class="flex flex-col items-center justify-center w-full h-full text-outline focus:outline-none">
+    <span class="material-symbols-outlined">settings</span>
+    <span class="font-label-sm text-[10px] mt-1">Settings</span>
+  </button>
+</nav>
+
+<!-- MOBILE BOTTOM SHEET: AGENT TRACE -->
+<div id="mobile-trace-sheet" class="fixed inset-x-0 bottom-0 h-[70vh] max-h-[660px] z-50 glass-panel rounded-t-3xl border-t border-white/10 flex flex-col shadow-[0_-20px_40px_rgba(0,0,0,0.5)] transform translate-y-full transition-transform duration-300 ease-out xl:hidden" style="background: rgba(19, 21, 15, 0.95); backdrop-filter: blur(24px);">
+  <!-- Sheet Header -->
+  <div class="flex flex-col items-center pt-3 pb-4 border-b border-white/5 px-container-padding sticky top-0 rounded-t-3xl z-10 bg-surface-container-highest/80 backdrop-blur-md">
+    <div onclick="toggleMobileTraceSheet(false)" class="w-12 h-1.5 rounded-full bg-outline/40 mb-4 cursor-pointer hover:bg-outline transition-colors"></div>
+    <div class="w-full flex justify-between items-center px-4">
+      <h2 class="font-display text-headline-lg-mobile text-on-surface font-semibold">Agent Trace</h2>
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2.5 w-2.5">
+          <span id="mobile-trace-badge-dot-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+          <span id="mobile-trace-badge-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary"></span>
+        </span>
+        <span id="mobile-trace-badge-text" class="font-label-mono text-label-mono text-secondary">INACTIVE</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Sheet Content -->
+  <div class="flex-grow overflow-y-auto p-6 relative flex flex-col gap-6 hide-scrollbar">
+    <!-- Timeline section (Circular Constellation) -->
+    <div class="relative flex items-center justify-center min-h-[340px] overflow-hidden" id="mobile-trace-timeline-container">
+      <div class="relative w-full h-full max-w-[270px] max-h-[300px] aspect-square" id="mobile-trace-nodes-container-mobile">
+        <svg id="mobile-trace-svg-connections" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 5; overflow: visible;">
+          <g id="mobile-trace-svg-group-mobile"></g>
+        </svg>
+        <!-- Nodes populated absolutely from JS -->
+        <div id="mobile-trace-nodes-list" class="absolute inset-0 z-10 overflow-visible"></div>
+      </div>
+    </div>
+    
+    <!-- Sources section -->
+    <div class="border-t border-white/5 pt-4">
+      <span class="font-label-mono text-[11px] text-outline uppercase tracking-wider mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[14px]">library_books</span>
+        Sources in context
+      </span>
+      <div class="space-y-2" id="mobile-context-sources-list">
+        <p class="font-body-md text-xs text-outline/35 italic">No source cards loaded</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN WRAPPER -->
+<div class="relative w-full h-full flex flex-col md:flex-row pt-16 z-10">
+
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="hidden md:flex flex-col w-64 h-[calc(100vh-64px)] bg-surface-dim/90 backdrop-blur-lg border-r border-white/5 py-panel-gap transition-all duration-300 ease-in-out shrink-0 z-20">
+    <div class="px-6 mb-8 flex items-center justify-between mt-4">
+      <div>
+        <h2 class="font-display text-headline-lg text-primary leading-none select-none">Corpus AI</h2>
+        <p class="font-label-mono text-label-mono text-outline mt-1 select-none">v2.4 Agentic</p>
+      </div>
+    </div>
+    <!-- New Thread Button -->
+    <div class="px-4 mb-6">
+      <button onclick="newThread()" class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl primary-gradient-bg text-on-primary-container font-label-sm hover:opacity-90 transition-opacity shadow-[0_0_15px_rgba(197,192,255,0.2)] font-semibold">
+        <span class="material-symbols-outlined text-[18px]">add</span>
+        New Thread
+      </button>
+    </div>
+    <!-- Nav Links -->
+    <div class="px-2 space-y-1 mb-8">
+      <button onclick="switchView('research')" id="nav-btn-research" class="w-full flex items-center gap-3 px-4 py-3 text-outline hover:text-on-surface-variant hover:backdrop-blur-2xl hover:bg-white/5 rounded-lg transition-all duration-200 text-left focus:outline-none">
+        <span class="material-symbols-outlined text-[20px]">biotech</span>
+        <span class="font-body-md text-body-md">Research</span>
+      </button>
+      <button onclick="switchView('library')" id="nav-btn-library" class="w-full flex items-center gap-3 px-4 py-3 text-outline hover:text-on-surface-variant hover:backdrop-blur-2xl hover:bg-white/5 rounded-lg transition-all duration-200 text-left focus:outline-none">
+        <span class="material-symbols-outlined text-[20px]">database</span>
+        <span class="font-body-md text-body-md">Library</span>
+      </button>
+    </div>
+    <!-- Recent Sessions -->
+    <div class="px-6 mb-2">
+      <h3 class="font-label-sm text-label-sm text-outline-variant uppercase tracking-wider select-none">Recent Sessions</h3>
+    </div>
+    <!-- Thread List -->
+    <div id="thread-list" class="flex-1 overflow-y-auto px-2 space-y-1 pb-4">
+      <p class="font-body-md text-xs text-outline/40 px-4 py-2 italic select-none">No active threads</p>
+    </div>
+    <!-- Sidebar Footer Nav -->
+    <div class="mt-auto px-2 pt-4 border-t border-white/5 space-y-1">
+      <a class="flex items-center gap-3 px-4 py-2 text-outline hover:text-on-surface-variant hover:backdrop-blur-2xl hover:bg-white/5 rounded-lg transition-all" href="#">
+        <span class="material-symbols-outlined text-[20px]">help</span>
+        <span class="font-body-md text-body-md">Support</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-2 text-outline hover:text-on-surface-variant hover:backdrop-blur-2xl hover:bg-white/5 rounded-lg transition-all" href="#">
+        <span class="material-symbols-outlined text-[20px]">account_circle</span>
+        <span class="font-body-md text-body-md">Account</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- CONTENT CONTAINER -->
+  <main class="flex-grow flex h-[calc(100vh-64px)] relative overflow-hidden">
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- VIEW: RESEARCH (New Thread / Empty State)             -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="view-research" class="absolute inset-0 flex flex-col justify-between max-w-4xl mx-auto w-full z-10 p-container-padding pb-0 md:p-[40px] md:pb-0 transition-all duration-300">
+      
+      <!-- Status Header (Desktop Only) -->
+      <div class="hidden md:block absolute top-8 left-8">
+        <h1 class="font-headline-lg text-headline-lg gradient-text mb-2 font-medium">Corpus AI</h1>
+        <p id="research-api-status" class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
+          <span class="relative flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span></span>
+          Connecting to semantic index...
+        </p>
+      </div>
+
+      <!-- Welcome State Content -->
+      <div class="flex-grow flex flex-col items-center justify-center text-center mt-[-4vh]">
+        <div class="w-20 h-20 rounded-full glass-panel flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(139,128,255,0.2)]">
+          <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+        </div>
+        <h2 class="font-display text-4xl md:text-[48px] text-on-surface mb-4 leading-tight">What shall we explore?</h2>
+        <p class="font-body-lg text-body-lg text-on-surface-variant mb-12 max-w-md">Ask your papers anything. Initialize a reasoning thread to explore connections.</p>
+        
+        <!-- Bento example prompt chips -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-panel-gap w-full max-w-3xl px-4">
+          <button onclick="setQuery('Summarize key findings in Scaling Laws for Neural Language Models')" class="glass-panel p-6 rounded-2xl flex flex-col items-start text-left hover:bg-white/5 transition-all group focus:outline-none">
+            <span class="material-symbols-outlined text-secondary-fixed mb-4 group-hover:scale-110 transition-transform shadow-secondary-fixed drop-shadow-[0_0_8px_rgba(88,251,218,0.3)]">summarize</span>
+            <span class="font-body-md text-body-md text-on-surface">Summarize Scaling Laws</span>
+            <span class="font-label-mono text-label-mono text-outline-variant mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Prompt →</span>
+          </button>
+          <button onclick="setQuery('Compare self-attention vs cross-attention mechanisms')" class="glass-panel p-6 rounded-2xl flex flex-col items-start text-left hover:bg-white/5 transition-all group focus:outline-none">
+            <span class="material-symbols-outlined text-primary mb-4 group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(197,192,255,0.3)]">compare_arrows</span>
+            <span class="font-body-md text-body-md text-on-surface">Compare attention mechanisms</span>
+            <span class="font-label-mono text-label-mono text-outline-variant mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Prompt →</span>
+          </button>
+          <button onclick="setQuery('What are the emergent abilities of Large Language Models?')" class="glass-panel p-6 rounded-2xl flex flex-col items-start text-left hover:bg-white/5 transition-all group focus:outline-none">
+            <span class="material-symbols-outlined text-tertiary mb-4 group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(255,180,166,0.3)]">update</span>
+            <span class="font-body-md text-body-md text-on-surface">Emergent abilities in LLMs</span>
+            <span class="font-label-mono text-label-mono text-outline-variant mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Prompt →</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Floating Input Area -->
+      <div class="w-full pb-8 pt-4 bg-gradient-to-t from-background via-background/80 to-transparent sticky bottom-0">
+        <div class="relative max-w-3xl mx-auto group">
+          <div class="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"></div>
+          <div class="glass-panel rounded-full flex items-center p-2 pl-6 relative z-10 border border-outline/20 group-focus-within:border-secondary-fixed/50 transition-colors bg-surface-container-highest/80">
+            <label for="file-attach-research" class="text-outline hover:text-on-surface cursor-pointer p-1 rounded-full hover:bg-white/5 transition-colors flex items-center justify-center">
+              <span class="material-symbols-outlined text-[20px]">attach_file</span>
+              <input type="file" id="file-attach-research" accept=".pdf" class="hidden" onchange="handleQuickAttach(this)"/>
+            </label>
+            <input id="query-input" autocomplete="off" class="flex-1 bg-transparent border-none text-body-lg text-on-surface placeholder:text-outline-variant focus:ring-0 px-4 h-12 font-body-lg" placeholder="Ask about your papers..." type="text" onkeydown="if(event.key==='Enter')handleSubmit()"/>
+            <button onclick="handleSubmit()" class="w-10 h-10 rounded-full primary-gradient-bg flex items-center justify-center text-on-primary-container hover:opacity-90 transition-opacity active:scale-95 duration-100 focus:outline-none">
+              <span class="material-symbols-outlined text-[20px]">arrow_upward</span>
+            </button>
+          </div>
+          <div class="flex justify-center gap-4 mt-3">
+            <span id="sources-selected-label" class="font-label-mono text-label-mono text-outline-variant flex items-center gap-1 select-none">
+              <span class="material-symbols-outlined text-[14px]">attach_file</span> 0 Sources Selected
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- VIEW: REASONING (Active Thread / Chat)                -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="view-reasoning" class="absolute inset-0 w-full h-full flex flex-col md:flex-row overflow-hidden hidden transition-all duration-300">
+      <!-- Gemini Aurora Glow -->
+      <div class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-gradient-to-br from-[#785ef0]/10 via-[#58fbda]/5 to-transparent blur-[100px] pointer-events-none z-0"></div>
+      <div class="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-gradient-to-tr from-[#150067]/15 via-[#785ef0]/5 to-transparent blur-[80px] pointer-events-none z-0"></div>
+      
+      <!-- Center: Active Reasoning Chat -->
+      <div class="flex-1 flex flex-col p-container-padding relative overflow-y-auto h-full">
+        <!-- Thread Title & Trace ID Header -->
+        <div class="max-w-3xl mx-auto w-full mb-6 mt-4 flex-shrink-0">
+          <div class="flex items-center gap-2 text-outline-variant/80 font-label-mono text-[11px]">
+            <span class="material-symbols-outlined text-[14px]">ssid_chart</span>
+            <span id="thread-trace-id-label">TRACE_ID: INIT</span>
+          </div>
+          <h1 id="thread-title-label" class="font-display text-[26px] font-semibold text-on-surface mt-2 mb-0 leading-tight">
+            Research Thread
+          </h1>
+        </div>
+
+        <!-- Claims Verified Header -->
+        <div class="max-w-3xl mx-auto w-full mb-6 flex items-center justify-between flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary-fixed text-[20px]">verified</span>
+            <span id="verified-claims-label" class="font-label-mono text-label-mono text-secondary-fixed tracking-wider uppercase drop-shadow-[0_0_8px_rgba(88,251,218,0.4)]">Awaiting Verification</span>
+          </div>
+          <div id="thread-timing-label" class="font-mono text-xs text-outline-variant/60"></div>
+        </div>
+
+        <!-- Chat Stream Messages -->
+        <div class="max-w-3xl mx-auto w-full flex-1 flex flex-col gap-6" id="chat-messages-container">
+          <!-- Assistant Message -->
+          <div class="flex gap-4">
+            <div class="w-8 h-8 rounded-full bg-surface-container-highest border border-white/10 flex items-center justify-center flex-shrink-0 mt-1 relative">
+              <span class="material-symbols-outlined text-primary text-[18px]">smart_toy</span>
+              <div class="thinking-orb top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" id="thinking-orb-active"></div>
+            </div>
+            <div class="flex-1 space-y-4">
+              <!-- Content Area -->
+              <div id="answer-box" class="font-body-lg text-body-lg text-on-surface leading-relaxed relative min-h-[100px]">
+                <!-- Skeleton loader -->
+                <div class="space-y-3" id="answer-skeleton">
+                  <div class="skeleton h-5 w-3/4 bg-white/5 rounded"></div>
+                  <div class="skeleton h-5 w-full bg-white/5 rounded"></div>
+                  <div class="skeleton h-5 w-5/6 bg-white/5 rounded"></div>
+                </div>
+                <div id="answer-rendered" class="answer-body hidden"></div>
+              </div>
+              
+              <!-- Action Bar -->
+              <div class="flex items-center gap-2 pt-2 border-t border-white/5">
+                <button class="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-white/5 transition-all" title="Copy answer" onclick="copyAnswerText()">
+                  <span class="material-symbols-outlined text-[18px]">content_copy</span>
+                </button>
+                <button class="p-1.5 rounded-lg text-outline hover:text-secondary-fixed hover:bg-white/5 transition-all" title="Thumbs Up" onclick="submitFeedback('up')">
+                  <span class="material-symbols-outlined text-[18px]">thumb_up</span>
+                </button>
+                <button class="p-1.5 rounded-lg text-outline hover:text-error hover:bg-white/5 transition-all" title="Thumbs Down" onclick="submitFeedback('down')">
+                  <span class="material-symbols-outlined text-[18px]">thumb_down</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Follow-up input dock -->
+        <div class="max-w-3xl mx-auto w-full pb-8 pt-6 mt-auto bg-gradient-to-t from-background via-background/80 to-transparent sticky bottom-0 flex-shrink-0">
+          <!-- Mobile Agent Trace Sheet Trigger -->
+          <div class="hidden justify-center mb-3">
+            <button onclick="toggleMobileTraceSheet(true)" class="group flex flex-col items-center gap-1 cursor-pointer focus:outline-none">
+              <span class="font-label-sm text-label-sm text-secondary-fixed/70 uppercase tracking-widest group-hover:text-secondary-fixed transition-colors">Agent Trace</span>
+              <div class="w-12 h-1 rounded-full bg-secondary-fixed/50 group-hover:bg-secondary-fixed group-hover:shadow-[0_0_8px_rgba(88,251,218,0.6)] transition-all"></div>
+            </button>
+          </div>
+          <div class="relative group">
+
+            <div class="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"></div>
+            <div class="glass-panel rounded-full flex items-center p-1.5 pl-6 relative z-10 border border-outline/20 group-focus-within:border-secondary-fixed/50 transition-colors bg-surface-container-highest/80">
+              <input id="followup-input" autocomplete="off" class="flex-1 bg-transparent border-none text-body-lg text-on-surface placeholder:text-outline-variant focus:ring-0 px-4 h-11 font-body-lg" placeholder="Ask a follow-up..." type="text" onkeydown="if(event.key==='Enter')handleFollowup()"/>
+              <button onclick="handleFollowup()" class="w-10 h-10 rounded-full primary-gradient-bg flex items-center justify-center text-on-primary-container hover:opacity-90 transition-opacity active:scale-95 duration-100 focus:outline-none">
+                <span class="material-symbols-outlined text-[20px]">arrow_upward</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Agent Trace Panel (Desktop Only) -->
+      <aside class="hidden xl:flex flex-col w-80 h-full p-6 pl-0 z-20">
+        <div class="glass-panel rounded-2xl w-full h-full flex flex-col border border-white/5 bg-surface-container/30 relative overflow-hidden">
+          <!-- Panel Header -->
+          <div class="p-4 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+            <span class="font-label-mono text-label-mono text-outline uppercase tracking-wider flex items-center gap-1.5"><span class="material-symbols-outlined text-secondary text-[16px]">memory</span> Agent Trace</span>
+            <span id="agent-trace-badge" class="font-label-mono text-[10px] text-outline bg-white/5 px-2 py-0.5 rounded-full">INACTIVE</span>
+          </div>
+
+          <!-- Trace Timeline Nodes (Circular Constellation) -->
+          <div class="flex-grow p-6 relative overflow-hidden flex items-center justify-center min-h-[380px]" id="trace-timeline-container">
+            <div class="relative w-full h-full max-w-[270px] max-h-[300px] aspect-square" id="trace-nodes-container">
+              <!-- SVG connection lines -->
+              <svg id="trace-svg-connections" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 5; overflow: visible;">
+                <defs>
+                  <linearGradient id="trace-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00d0b1" />
+                    <stop offset="100%" stop-color="#8b80ff" />
+                  </linearGradient>
+                  <filter id="trace-glow">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <g id="trace-svg-group"></g>
+              </svg>
+              <!-- Nodes populated absolutely from JS -->
+              <div id="trace-nodes-list" class="absolute inset-0 z-10 overflow-visible"></div>
+            </div>
+          </div>
+
+          <!-- Sources Section Bottom -->
+          <div class="h-64 border-t border-white/5 bg-surface-container-high/30 p-4 flex flex-col gap-3 flex-shrink-0 overflow-y-auto" id="context-sources-panel">
+            <span class="font-label-mono text-[11px] text-outline uppercase tracking-wider mb-1 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px]">library_books</span>
+              SOURCES <span id="sources-count-badge" class="ml-1 text-outline-variant">(0)</span>
+            </span>
+            <div class="space-y-2" id="context-sources-list">
+              <p class="font-body-md text-xs text-outline/35 italic">No source cards loaded</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- VIEW: LIBRARY                                         -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="view-library" class="absolute inset-0 pt-8 px-container-padding max-w-[1600px] mx-auto pb-24 overflow-y-auto hidden z-10 transition-all duration-300">
+      
+      <!-- Sub-header & upload -->
+      <div class="mb-12 flex flex-col md:flex-row gap-4 items-center justify-between mt-4">
+        <div class="relative w-full max-w-2xl search-glow transition-all duration-300 rounded-full border border-white/10 bg-surface-container/60 backdrop-blur-md">
+          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" style="font-variation-settings: 'FILL' 0;">search</span>
+          <input id="library-search" class="w-full bg-transparent border-none focus:ring-0 text-body-md text-on-surface py-4 pl-12 pr-6 rounded-full placeholder-outline-variant outline-none font-body-md" placeholder="Query semantic index..." type="text" oninput="filterPapers()"/>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <span class="font-label-mono text-[10px] text-outline-variant bg-surface-container-highest px-2 py-1 rounded border border-white/5 uppercase select-none">Search</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 w-full md:w-auto">
+          <button onclick="showUploadModal()" class="gradient-btn text-white font-semibold text-sm px-5 py-3 rounded-full flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary-container/20">
+            <span class="material-symbols-outlined text-[18px]">upload_file</span> Upload PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Paper Grid -->
+      <div id="library-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-panel-gap">
+        <!-- Dynamically populated -->
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- VIEW: SYSTEM SETTINGS                                 -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="view-settings" class="absolute inset-0 pt-8 px-container-padding max-w-[1000px] mx-auto pb-24 overflow-y-auto hidden z-10 transition-all duration-300">
+      <div class="mt-8 space-y-6">
+        <!-- System Configuration -->
+        <div class="glass-panel p-8 rounded-2xl border border-white/10">
+          <h2 class="font-display text-2xl text-primary font-semibold mb-6">Corpus System Configuration</h2>
+          <div class="space-y-6">
+            <div>
+              <h3 class="text-sm font-semibold text-on-surface mb-2">Connected LLM Layer</h3>
+              <p class="text-xs text-outline mb-4">Keeping Ollama running natively on the host machine while databases are containerized.</p>
+              <div class="bg-surface-container/60 p-4 rounded-xl border border-white/5 flex justify-between items-center">
+                <div>
+                  <p class="text-sm font-mono text-secondary">native-host://ollama:11434</p>
+                  <p class="text-xs text-outline-variant">Model: DeepSeek-R1-Distill-Qwen-14B</p>
+                </div>
+                <span class="font-label-mono text-[10px] text-secondary bg-secondary/10 border border-secondary/20 px-2 py-1 rounded-full">ACTIVE</span>
+              </div>
+            </div>
+            <div class="border-t border-white/5 pt-6">
+              <h3 class="text-sm font-semibold text-on-surface mb-2">System Ports Reference</h3>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div class="bg-white/5 p-3 rounded-lg"><p class="text-outline">FastAPI API</p><p class="font-mono text-secondary text-sm mt-1">8000</p></div>
+                <div class="bg-white/5 p-3 rounded-lg"><p class="text-outline">Web UI</p><p class="font-mono text-secondary text-sm mt-1">7860</p></div>
+                <div class="bg-white/5 p-3 rounded-lg"><p class="text-outline">Langfuse Web</p><p class="font-mono text-secondary text-sm mt-1">3001</p></div>
+                <div class="bg-white/5 p-3 rounded-lg"><p class="text-outline">Airflow Web</p><p class="font-mono text-secondary text-sm mt-1">8080</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Langfuse Diagnostics -->
+        <div class="glass-panel p-8 rounded-2xl border border-white/10">
+          <h2 class="font-display text-2xl text-primary font-semibold mb-2">Langfuse Observability Diagnostics</h2>
+          <p class="text-xs text-outline mb-6">Traces agent execution logs, node times, LLM cost parameters, and citations grounding.</p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-2 space-y-4">
+              <div class="bg-surface-container/60 p-4 rounded-xl border border-white/5 space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs text-outline">Langfuse Host</span>
+                  <span class="font-mono text-xs text-on-surface" id="langfuse-diag-host">http://localhost:3001</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-xs text-outline">Public Key Status</span>
+                  <span class="font-mono text-xs text-on-surface" id="langfuse-diag-pub">Checking...</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-xs text-outline">Secret Key Status</span>
+                  <span class="font-mono text-xs text-on-surface" id="langfuse-diag-sec">Checking...</span>
+                </div>
+              </div>
+              <div class="p-4 bg-white/5 rounded-xl border border-white/5 text-xs text-outline-variant leading-relaxed" id="langfuse-setup-hint">
+                To connect Langfuse, configure <code class="bg-black/40 px-1 py-0.5 rounded text-secondary font-mono">LANGFUSE_PUBLIC_KEY</code> and <code class="bg-black/40 px-1 py-0.5 rounded text-secondary font-mono">LANGFUSE_SECRET_KEY</code> inside your <code class="bg-black/40 px-1 py-0.5 rounded text-secondary font-mono">.env</code> configuration file.
+              </div>
+            </div>
+            <div class="flex flex-col items-center justify-center bg-surface-container/60 border border-white/5 p-6 rounded-xl text-center">
+              <span class="material-symbols-outlined text-4xl mb-2 text-outline-variant" id="langfuse-status-icon">settings_ethernet</span>
+              <span class="font-label-mono text-[11px] text-outline uppercase tracking-wider">Connection Status</span>
+              <h3 class="font-display text-xl mt-2 text-outline" id="langfuse-status-label">UNKNOWN</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- RAGAS / DeepEval Suite -->
+        <div class="glass-panel p-8 rounded-2xl border border-white/10">
+          <h2 class="font-display text-2xl text-primary font-semibold mb-2">RAGAS Sampled Evaluation Suite</h2>
+          <p class="text-xs text-outline mb-6">Executes deep verification of retrieved contexts against answer claims using Ollama/OpenAI RAGAS metrics.</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-surface-container/60 border border-white/5 p-6 rounded-xl flex flex-col justify-between">
+              <div>
+                <h3 class="font-label-mono text-[10px] text-outline uppercase tracking-wider mb-4">Latest Metrics Result</h3>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="p-3 bg-white/5 rounded-lg text-center">
+                    <span class="text-[10px] text-outline">Faithfulness</span>
+                    <p class="font-display text-2xl text-secondary mt-1" id="eval-metric-faith">--</p>
+                  </div>
+                  <div class="p-3 bg-white/5 rounded-lg text-center">
+                    <span class="text-[10px] text-outline">Answer Relevancy</span>
+                    <p class="font-display text-2xl text-secondary mt-1" id="eval-metric-relevancy">--</p>
+                  </div>
+                </div>
+              </div>
+              <p class="text-[11px] text-outline-variant mt-4" id="eval-last-run-label">Last Run: Never executed</p>
+            </div>
+            
+            <div class="flex flex-col justify-center gap-4 bg-surface-container/60 border border-white/5 p-6 rounded-xl">
+              <button onclick="runEvaluation()" id="eval-run-btn" class="w-full gradient-btn text-white font-semibold text-sm px-6 py-3 rounded-full flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-md focus:outline-none">
+                <span class="material-symbols-outlined text-[18px]">play_circle</span> Run RAGAS Evaluation
+              </button>
+              <div class="text-xs text-outline-variant leading-relaxed text-center" id="eval-status-message">
+                Evaluates a sample of recent thread traces or baseline golden datasets.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="upload-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 backdrop-blur-md">
+  <div class="glass-panel rounded-2xl w-full max-w-lg mx-4 p-6 animate-fade-up border border-white/10" style="background: rgba(31,32,27,0.9);">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-display text-lg text-on-surface font-semibold">Index a New Paper</h3>
+      <button onclick="hideUploadModal()" class="text-on-surface-variant hover:text-on-surface transition-colors focus:outline-none"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <!-- Drop zone -->
+    <div id="drop-zone" class="border-2 border-dashed border-outline-variant/40 rounded-xl p-8 text-center mb-4 hover:border-secondary/50 transition-colors cursor-pointer"
+         onclick="document.getElementById('upload-file').click()"
+         ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-secondary/5')"
+         ondragleave="this.classList.remove('border-secondary', 'bg-secondary/5')"
+         ondrop="event.preventDefault(); this.classList.remove('border-secondary', 'bg-secondary/5'); handleDrop(event)">
+      <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">cloud_upload</span>
+      <p class="font-body text-sm text-on-surface-variant">Drop PDF here or click to browse</p>
+      <p id="upload-filename" class="font-mono text-xs text-secondary mt-2 hidden"></p>
+      <input type="file" id="upload-file" accept=".pdf" class="hidden" onchange="handleFileSelect(this)"/>
+    </div>
+    <!-- Auto-extract badge -->
+    <p id="extract-badge" class="font-mono text-[11px] text-secondary/80 mb-3 hidden">✨ Layout metadata auto-detected</p>
+    <!-- Fields -->
+    <div class="space-y-3 mb-5">
+      <input id="upload-title" class="w-full bg-surface-container border border-white/[0.06] rounded-lg px-3 py-2.5 text-on-surface font-body text-sm focus:ring-1 focus:ring-secondary/50 focus:border-secondary/50 placeholder:text-on-surface-variant/40 outline-none" placeholder="Paper title (auto-extracted)"/>
+      <input id="upload-authors" class="w-full bg-surface-container border border-white/[0.06] rounded-lg px-3 py-2.5 text-on-surface font-body text-sm focus:ring-1 focus:ring-secondary/50 focus:border-secondary/50 placeholder:text-on-surface-variant/40 outline-none" placeholder="Authors (comma-separated)"/>
+      <input id="upload-categories" class="w-full bg-surface-container border border-white/[0.06] rounded-lg px-3 py-2.5 text-on-surface font-body text-sm focus:ring-1 focus:ring-secondary/50 focus:border-secondary/50 placeholder:text-on-surface-variant/40 outline-none" placeholder="Categories (e.g. cs.CL, cs.LG)"/>
+    </div>
+    <!-- Actions -->
+    <div class="flex items-center justify-between">
+      <p id="upload-status" class="font-mono text-xs text-on-surface-variant/60"></p>
+      <button id="upload-btn" onclick="handleUpload()" disabled class="gradient-btn text-white font-semibold text-sm px-5 py-2.5 rounded-full flex items-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none">
+        <span class="material-symbols-outlined text-[18px]">bolt</span> Parse & Index
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- FLOATING CITATION POPOVER CARD -->
+<div id="citation-popover" class="fixed hidden w-80 floating-panel rounded-xl p-4 z-[99] pointer-events-none transition-opacity duration-200 opacity-0 select-none">
+  <div class="flex flex-col gap-2">
+    <h4 id="popover-title" class="font-display text-[15px] text-on-surface font-semibold leading-tight">Citation Title</h4>
+    <p id="popover-authors" class="font-label-mono text-[11px] text-outline">Authors</p>
+    <div class="h-px w-full bg-white/10 my-1"></div>
+    <p id="popover-snippet" class="font-body-md text-[13px] text-on-surface-variant line-clamp-3 italic">Snippet text...</p>
+  </div>
+  <!-- Downward pointing triangle -->
+  <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-container border-r border-b border-white/15 rotate-45"></div>
+</div>
+
+<!-- JAVASCRIPT -->
+<script>
+// ── Configuration ──
+const API_BASE = window.location.protocol + '//' + window.location.hostname + ':8000';
+
+// ── State ──
+const state = {
+  view: 'research',
+  sessionId: '',
+  papers: [],
+  citations: [],
+  recentThreads: [],
+  isLoading: false,
+  uploadFile: null,
+};
+
+
+
+// ── Define 11 Timeline Nodes from Google Stitch Spec ──
+const timelineNodes = [
+  { id: 'parse', label: 'Parse', left: 20, top: 15 },
+  { id: 'intent', label: 'Intent', left: 50, top: 10 },
+  { id: 'strategy', label: 'Strategy', left: 80, top: 15 },
+  { id: 'retrieve', label: 'Retrieve', left: 86, top: 40 },
+  { id: 'rank', label: 'Rank', left: 62, top: 38 },
+  { id: 'extract', label: 'Extract', left: 78, top: 62 },
+  { id: 'cross', label: 'Cross-Ref', left: 82, top: 84 },
+  { id: 'synthesize', label: 'Synthesize', left: 50, top: 88 },
+  { id: 'verify', label: 'Verify', left: 18, top: 82 },
+  { id: 'format', label: 'Format', left: 24, top: 52 },
+  { id: 'review', label: 'Review', left: 50, top: 50 }
+];
+
+// ── API Helpers ──
+async function apiFetch(path, opts = {}) {
+  const url = API_BASE + '/api/v1' + path;
+  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts.headers } });
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+// ── Switch View ──
+function switchView(view) {
+  state.view = view;
+  
+  // Update view panel visibility
+  ['research', 'reasoning', 'library', 'settings'].forEach(v => {
+    const el = document.getElementById('view-' + v);
+    if (v === view) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+
+  // Sidebar navigation indicators
+  ['research', 'library'].forEach(v => {
+    const btn = document.getElementById('nav-btn-' + v);
+    if (v === view || (view === 'reasoning' && v === 'research')) {
+      btn.classList.add('bg-secondary-container/20', 'text-secondary-fixed');
+      btn.classList.remove('text-outline');
+    } else {
+      btn.classList.remove('bg-secondary-container/20', 'text-secondary-fixed');
+      btn.classList.add('text-outline');
+    }
+  });
+
+  // Top navigation indicators
+  const libLink = document.getElementById('top-nav-library');
+  const threadsLink = document.getElementById('top-nav-threads');
+  if (view === 'library') {
+    libLink.classList.add('text-secondary-fixed', 'font-bold', 'border-b-2', 'border-secondary-fixed', 'pb-1');
+    libLink.classList.remove('text-outline');
+    threadsLink.classList.remove('text-secondary-fixed', 'font-bold', 'border-b-2', 'border-secondary-fixed', 'pb-1');
+    threadsLink.classList.add('text-outline');
+  } else if (view === 'research' || view === 'reasoning') {
+    threadsLink.classList.add('text-secondary-fixed', 'font-bold', 'border-b-2', 'border-secondary-fixed', 'pb-1');
+    threadsLink.classList.remove('text-outline');
+    libLink.classList.remove('text-secondary-fixed', 'font-bold', 'border-b-2', 'border-secondary-fixed', 'pb-1');
+    libLink.classList.add('text-outline');
+  } else {
+    threadsLink.classList.remove('text-secondary-fixed', 'font-bold', 'border-b-2', 'border-secondary-fixed', 'pb-1');
+    threadsLink.classList.add('text-outline');
+    libLink.classList.remove('text-secondary-fixed', 'font-bold', 'border-b-2', 'border-secondary-fixed', 'pb-1');
+    libLink.classList.add('text-outline');
+  }
+
+  // Mobile navigation indicators
+  ['research', 'library', 'settings'].forEach(v => {
+    const btn = document.getElementById('mobile-nav-' + v);
+    if (btn) {
+      if (v === view || (view === 'reasoning' && v === 'research')) {
+        btn.classList.add('text-secondary-fixed');
+        btn.classList.remove('text-outline');
+      } else {
+        btn.classList.remove('text-secondary-fixed');
+        btn.classList.add('text-outline');
+      }
+    }
+  });
+
+  if (view === 'library') loadPapers();
+  if (view === 'settings') {
+    updateHealthPopover();
+    updateDiagnostics();
+  }
+}
+
+function newThread() {
+  state.sessionId = '';
+  document.getElementById('query-input').value = '';
+  document.getElementById('sources-selected-label').innerHTML = `
+    <span class="material-symbols-outlined text-[14px]">attach_file</span> 0 Sources Selected`;
+  switchView('research');
+  closeAllMobilePanels();
+}
+
+function setQuery(q) {
+  document.getElementById('query-input').value = q;
+  handleSubmit();
+}
+
+// ── Submit Search Query ──
+async function handleSubmit() {
+  const queryInput = document.getElementById('query-input');
+  const query = queryInput.value.trim();
+  if (!query || state.isLoading) return;
+  
+  queryInput.value = '';
+  await runAgentPipeline(query);
+}
+
+async function handleFollowup() {
+  const input = document.getElementById('followup-input');
+  const query = input.value.trim();
+  if (!query || state.isLoading) return;
+  
+  input.value = '';
+  await runAgentPipeline(query);
+}
+
+// ── Run RAG Agent Pipeline (SSE Streaming) ──
+async function runAgentPipeline(query) {
+  state.isLoading = true;
+  state.citations = [];
+
+  // Switch to Reasoning view
+  switchView('reasoning');
+
+  // Dynamic Trace ID and Title
+  const traceId = (Math.floor(Math.random() * 90) + 10) + '-' + String.fromCharCode(65 + Math.floor(Math.random() * 26));
+  state.currentTraceId = traceId;
+  state.currentQueryId = 'q-' + Math.random().toString(36).substr(2, 9);
+  const traceIdEl = document.getElementById('thread-trace-id-label');
+  if (traceIdEl) traceIdEl.textContent = `TRACE_ID: ${traceId}`;
+  
+  let threadTitle = query;
+  if (query.length > 55) {
+    threadTitle = query.substring(0, 55) + '...';
+  }
+  const titleEl = document.getElementById('thread-title-label');
+  if (titleEl) titleEl.textContent = threadTitle;
+
+  document.getElementById('verified-claims-label').textContent = 'Initial check...';
+  document.getElementById('thread-timing-label').textContent = '';
+  
+  // Populate the message container dynamically with User Bubble, Badge, and Assistant response box
+  const messagesContainer = document.getElementById('chat-messages-container');
+  messagesContainer.innerHTML = `
+    <!-- User Question Bubble -->
+    <div class="flex gap-4 items-start justify-end w-full max-w-3xl mb-2 animate-fade-up">
+      <div class="bg-surface-container-high/60 border border-white/5 rounded-2xl px-5 py-4 text-on-surface-variant max-w-[85%] text-[15px] leading-relaxed">
+        ${escapeHtml(query)}
+      </div>
+      <img alt="User Avatar" class="w-8 h-8 rounded-full border border-white/10 mt-1" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAeASiDkmLcwQldXk_VgFlweC3zEfvkt2IHK_nPy6fHTLf3D-1IKdSeVZLYRdh86Et5NolsUMrIKimA1U120c2I02ToL6ZEAKbD3L4i-z5O5gmo0j8GDX7sSCXancOYx3DwnUL2Lob5kvhluOxTr5lWZSjEcxtSQW3ZclROr5udY2qb5gjrxZTNNuaw-ydNII9V33CIM7HkPbR9uhlrpHN-CjH43iE5FaRRULhxjlOmHK4XdiInrzOR"/>
+    </div>
+
+    <!-- Agentic Synthesis Status Badge -->
+    <div id="agent-synthesis-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#785ef0]/15 border border-[#785ef0]/30 text-[#c5c0ff] font-label-mono text-[11px] w-fit mb-2 animate-fade-up">
+      <span class="material-symbols-outlined text-[13px] animate-pulse">auto_awesome</span>
+      <span id="agent-synthesis-badge-text">Agentic Synthesis in Progress...</span>
+    </div>
+
+    <!-- Assistant Message -->
+    <div class="flex gap-4 animate-fade-up">
+      <div class="w-8 h-8 rounded-full bg-surface-container-highest border border-white/10 flex items-center justify-center flex-shrink-0 mt-1 relative">
+        <span class="material-symbols-outlined text-primary text-[18px]">smart_toy</span>
+        <div class="thinking-orb top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" id="thinking-orb-active"></div>
+      </div>
+      <div class="flex-grow space-y-4">
+        <!-- Content Area -->
+        <div id="answer-box" class="font-body-lg text-body-lg text-on-surface leading-relaxed relative min-h-[100px]">
+          <!-- Skeleton loader -->
+          <div class="space-y-3" id="answer-skeleton">
+            <div class="skeleton h-5 w-3/4 bg-white/5 rounded"></div>
+            <div class="skeleton h-5 w-full bg-white/5 rounded"></div>
+            <div class="skeleton h-5 w-5/6 bg-white/5 rounded"></div>
+          </div>
+          <div id="answer-rendered" class="answer-body hidden"></div>
+        </div>
+        
+        <!-- Action Bar -->
+        <div class="flex items-center gap-2 pt-2 border-t border-white/5">
+          <button class="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-white/5 transition-all cursor-pointer" title="Copy answer" onclick="copyAnswerText()">
+            <span class="material-symbols-outlined text-[18px]">content_copy</span>
+          </button>
+          <button class="p-1.5 rounded-lg text-outline hover:text-secondary-fixed hover:bg-white/5 transition-all cursor-pointer" title="Thumbs Up" onclick="submitFeedback('up')">
+            <span class="material-symbols-outlined text-[18px]">thumb_up</span>
+          </button>
+          <button class="p-1.5 rounded-lg text-outline hover:text-error hover:bg-white/5 transition-all cursor-pointer" title="Thumbs Down" onclick="submitFeedback('down')">
+            <span class="material-symbols-outlined text-[18px]">thumb_down</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('context-sources-list').innerHTML = `<p class="font-body-md text-xs text-outline/35 italic">No source cards loaded</p>`;
+  
+  const mobSources = document.getElementById('mobile-context-sources-list');
+  if (mobSources) mobSources.innerHTML = `<p class="font-body-md text-xs text-outline/35 italic">No source cards loaded</p>`;
+
+  // Initialize Trace panel
+  initializeTraceTimeline();
+  updateTraceBadge('ACTIVE');
+
+  // Push to recent sessions
+  addRecentSession(query);
+
+  const startTime = performance.now();
+  let traceStepsCount = 0;
+  let answerTokens = '';
+  let citationsLoaded = [];
+
+  try {
+    const url = API_BASE + '/api/v1/stream';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, session_id: state.sessionId || undefined }),
+    });
+
+    if (!res.ok) throw new Error(`Stream connection failed (${res.status})`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentEventType = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('event: ')) {
+          currentEventType = trimmed.slice(7).trim();
+        } else if (trimmed.startsWith('data: ')) {
+          let parsed;
+          try { parsed = JSON.parse(trimmed.slice(6)); } catch { continue; }
+
+          const eventType = currentEventType || parsed.event || parsed.type || '';
+          const eventData = parsed.data || parsed;
+          currentEventType = ''; // Reset
+
+          if (eventType === 'trace') {
+            traceStepsCount++;
+            advanceTraceTimeline(eventData.step || 'Processing...', traceStepsCount);
+          } else if (eventType === 'token') {
+            // Clear skeleton on first tokens
+            document.getElementById('answer-skeleton').classList.add('hidden');
+            document.getElementById('answer-rendered').classList.remove('hidden');
+
+            answerTokens += eventData.text || '';
+            const renderingBox = document.getElementById('answer-rendered');
+            if (renderingBox && typeof marked !== 'undefined') {
+              const placeholders = {};
+              let streamCounter = 0;
+              const streamProcessed = answerTokens.replace(/\[(\d+)\]/g, (match, num) => {
+                streamCounter++;
+                const key = `ZCITEZ${streamCounter}ZCITEZ`;
+                const hasCite = citationsLoaded.some(c => String(c.id) === num);
+                if (hasCite) {
+                  placeholders[key] = `<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-gradient-to-r from-[#c5c0ff] to-[#58fbda] text-[#20008e] shadow-[0_2px_4px_rgba(0,0,0,0.3)] cursor-pointer hover:opacity-90 transition-opacity border border-white/20 relative z-10 citation-chip" data-cite-id="${num}">[${num}]</span>`;
+                } else {
+                  placeholders[key] = `<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-white/5 text-outline cursor-default border border-white/10 select-none">[${num}]</span>`;
+                }
+                return key;
+              });
+
+              let cleanedStream = streamProcessed.replace(/## Sources[\s\S]*$/gi, '');
+              cleanedStream = cleanedStream.replace(/## References[\s\S]*$/gi, '');
+              cleanedStream = cleanedStream.replace(/\nSources:\n[\s\S]*$/gi, '');
+              cleanedStream = cleanedStream.replace(/\nReferences:\n[\s\S]*$/gi, '');
+              let html = marked.parse(cleanedStream.trim());
+              for (const [key, chip] of Object.entries(placeholders)) {
+                html = html.replaceAll(key, chip);
+              }
+
+              renderingBox.innerHTML = html + '<span class="inline-block w-2 h-5 bg-secondary-fixed align-middle ml-1 animate-pulse" id="cursor-pulse-span"></span>';
+              bindCitationChipEvents();
+            }
+          } else if (eventType === 'citation') {
+            citationsLoaded.push(eventData);
+            state.citations = citationsLoaded;
+            renderSourcesInContext(citationsLoaded);
+          } else if (eventType === 'done') {
+            const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+            state.sessionId = eventData.session_id || '';
+            
+            // Final render
+            finalizeAnswer(eventData.answer_markdown || answerTokens, eventData.citations || citationsLoaded);
+            
+            // Grounding note
+            const groundingNote = eventData.grounding_note || `${citationsLoaded.length} of ${citationsLoaded.length} claims verified`;
+            document.getElementById('verified-claims-label').textContent = groundingNote;
+            document.getElementById('thread-timing-label').textContent = `${elapsed}s`;
+
+            completeTraceTimeline(elapsed);
+            updateTraceBadge('COMPLETED');
+          } else if (eventType === 'error') {
+            throw new Error(eventData.message || 'Stream error');
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    // Fallback or show error state
+    document.getElementById('answer-skeleton').classList.add('hidden');
+    document.getElementById('answer-rendered').classList.remove('hidden');
+    document.getElementById('answer-rendered').innerHTML = `
+      <div class="glass-panel p-5 rounded-xl border border-error/20 bg-error/5 my-4">
+        <h4 class="font-semibold text-error flex items-center gap-2 mb-2">
+          <span class="material-symbols-outlined">error</span> Pipeline Connection Failed
+        </h4>
+        <p class="text-sm text-outline-variant">${escapeHtml(err.message)}</p>
+        <p class="text-xs text-outline-variant/60 mt-3 font-mono">Verify FastAPI backend API is active on port 8000.</p>
+      </div>`;
+    document.getElementById('verified-claims-label').textContent = 'Verification Failed';
+    updateTraceBadge('ERROR');
+  }
+
+  state.isLoading = false;
+}
+
+// ── Render Markdown and Citation Chips ──
+function finalizeAnswer(mdText, citations) {
+  const renderingBox = document.getElementById('answer-rendered');
+  if (!renderingBox) return;
+
+  // Update status badge
+  const badgeTextEl = document.getElementById('agent-synthesis-badge-text');
+  if (badgeTextEl) badgeTextEl.textContent = 'Agentic Synthesis Complete';
+  const badgeEl = document.getElementById('agent-synthesis-badge');
+  if (badgeEl) {
+    badgeEl.classList.remove('bg-[#785ef0]/15', 'border-[#785ef0]/30', 'text-[#c5c0ff]');
+    badgeEl.classList.add('bg-[#005346]/20', 'border-[#00d0b1]/30', 'text-[#2cdebe]');
+    // stop pulse on icon
+    const icon = badgeEl.querySelector('span');
+    if (icon) icon.classList.remove('animate-pulse');
+  }
+
+  // Clear pulse cursor
+  document.getElementById('answer-skeleton').classList.add('hidden');
+  renderingBox.classList.remove('hidden');
+
+  // Clean up duplicate citations list at the bottom of the response if any
+  let cleanedMd = mdText.replace(/## Sources[\s\S]*$/gi, '');
+  cleanedMd = cleanedMd.replace(/## References[\s\S]*$/gi, '');
+  cleanedMd = cleanedMd.replace(/\nSources:\n[\s\S]*$/gi, '');
+  cleanedMd = cleanedMd.replace(/\nReferences:\n[\s\S]*$/gi, '');
+  cleanedMd = cleanedMd.trim();
+
+  // Replace [N] citation markers with custom formatted spans matching Stitch
+  const placeholders = {};
+  let counter = 0;
+  const processed = cleanedMd.replace(/\[(\d+)\]/g, (match, num) => {
+    counter++;
+    const key = `ZCITEZ${counter}ZCITEZ`;
+    const hasCite = citations.some(c => String(c.id) === num);
+    if (hasCite) {
+      placeholders[key] = `<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-gradient-to-r from-[#c5c0ff] to-[#58fbda] text-[#20008e] shadow-[0_2px_4px_rgba(0,0,0,0.3)] cursor-pointer hover:opacity-90 transition-opacity border border-white/20 relative z-10 citation-chip" data-cite-id="${num}">[${num}]</span>`;
+    } else {
+      placeholders[key] = `<span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-label-mono bg-white/5 text-outline cursor-default border border-white/10 select-none">[${num}]</span>`;
+    }
+    return key;
+  });
+
+  let html = marked.parse(processed);
+  for (const [key, chip] of Object.entries(placeholders)) {
+    html = html.replaceAll(key, chip);
+  }
+
+  renderingBox.innerHTML = html;
+  bindCitationChipEvents();
+}
+
+// ── Hover interaction for Citation Chips ──
+function bindCitationChipEvents() {
+  const chips = document.querySelectorAll('.citation-chip');
+  const popover = document.getElementById('citation-popover');
+  
+  chips.forEach(chip => {
+    // Avoid double bindings
+    if (chip.dataset.bound) return;
+    chip.dataset.bound = "true";
+
+    chip.addEventListener('mouseenter', (e) => {
+      const citeId = chip.getAttribute('data-cite-id');
+      const cite = state.citations.find(c => String(c.id) === citeId);
+      if (!cite) return;
+
+      const titleEl = document.getElementById('popover-title');
+      const authorsEl = document.getElementById('popover-authors');
+      const snippetEl = document.getElementById('popover-snippet');
+
+      titleEl.textContent = cite.paper_title || 'Untitled Reference';
+      const authorStr = (cite.authors || []).slice(0, 3).join(', ') + ((cite.authors || []).length > 3 ? ' et al.' : '');
+      authorsEl.textContent = `${authorStr} • ${cite.arxiv_id || 'PDF'}`;
+      snippetEl.textContent = `"${cite.snippet || ''}"`;
+
+      // Position popover
+      const rect = chip.getBoundingClientRect();
+      popover.classList.remove('hidden');
+      popover.style.display = 'block';
+      
+      // Compute coordinates (centered above chip)
+      const popoverWidth = popover.offsetWidth;
+      const popoverHeight = popover.offsetHeight;
+      const topPos = rect.top + window.scrollY - popoverHeight - 12;
+      const leftPos = rect.left + window.scrollX + (rect.width / 2) - (popoverWidth / 2);
+
+      popover.style.top = `${topPos}px`;
+      popover.style.left = `${leftPos}px`;
+      
+      // Animate opacity
+      setTimeout(() => {
+        popover.classList.remove('opacity-0');
+        popover.classList.add('opacity-100');
+      }, 10);
+    });
+
+    chip.addEventListener('mouseleave', () => {
+      popover.classList.remove('opacity-100');
+      popover.classList.add('opacity-0');
+      setTimeout(() => {
+        if (popover.classList.contains('opacity-0')) {
+          popover.style.display = 'none';
+        }
+      }, 200);
+    });
+
+    chip.addEventListener('click', () => {
+      const citeId = chip.getAttribute('data-cite-id');
+      const cite = state.citations.find(c => String(c.id) === citeId);
+      if (cite && cite.arxiv_url) {
+        window.open(cite.arxiv_url, '_blank');
+      }
+    });
+  });
+}
+
+// ── Render Sources in context panel ──
+function renderSourcesInContext(citations) {
+  const container = document.getElementById('context-sources-list');
+  const mobileContainer = document.getElementById('mobile-context-sources-list');
+  
+  // Update badge count
+  const badgeEl = document.getElementById('sources-count-badge');
+  if (badgeEl) badgeEl.textContent = `(${citations.length})`;
+
+  if (!citations.length) {
+    const emptyHtml = `<p class="font-body-md text-xs text-outline/35 italic">No source cards loaded</p>`;
+    container.innerHTML = emptyHtml;
+    if (mobileContainer) mobileContainer.innerHTML = emptyHtml;
+    return;
+  }
+  
+  const html = citations.map(c => {
+    const primaryBorder = c.id === 1 ? 'border-t-primary-container' : (c.id === 2 ? 'border-t-secondary-container' : 'border-t-white/10');
+    
+    // Extracted logic for badges and topRightText
+    const isLive = String(c.chunk_id || '').startsWith('live_');
+    const badgeText = isLive ? 'EXTRACTING' : 'CACHED';
+    const badgeBg = isLive ? 'bg-white/5 border border-white/10 text-outline' : 'bg-[#005346]/20 border border-[#00d0b1]/30 text-[#2cdebe]';
+    
+    let topRightText = '';
+    if (isLive) {
+      topRightText = c.arxiv_id ? `arXiv:${c.arxiv_id}` : 'arXiv Live';
+    } else {
+      let year = '';
+      if (c.published_date) {
+        const match = c.published_date.match(/\d{4}/);
+        if (match) year = match[0];
+      }
+      const category = (c.categories && c.categories.length) ? c.categories[0] : 'cs.CL';
+      topRightText = year ? `${category} ${year}` : `${category}`;
+    }
+
+    // Dynamic but deterministic relevance score normalizer
+    let relScore = c.score;
+    if (relScore > 0 && relScore <= 1) {
+      relScore = Math.round(relScore * 100);
+    } else if (relScore > 1) {
+      relScore = Math.min(98, 60 + Math.round((relScore % 10) * 4));
+    } else {
+      let hash = 0;
+      const str = c.paper_title || '';
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      relScore = 60 + Math.abs(hash % 35);
+    }
+
+    return `
+      <div onclick="window.open('${c.arxiv_url || c.pdf_url || '#'}', '_blank')" class="glass-panel p-3 rounded-lg relative overflow-hidden group cursor-pointer border-t-[2px] ${primaryBorder} transition-all duration-200 hover:bg-white/5 flex flex-col gap-2">
+        <div class="flex justify-between items-center relative z-10">
+          <span class="font-label-mono text-[9px] px-1.5 py-0.5 rounded ${badgeBg} font-semibold">${badgeText}</span>
+          <span class="font-label-mono text-[9px] text-outline">${escapeHtml(topRightText)}</span>
+        </div>
+        <div class="flex flex-col gap-1 relative z-10">
+          <span class="font-body-md text-[13px] font-semibold text-on-surface leading-snug line-clamp-2 group-hover:text-primary-fixed-dim transition-colors">${escapeHtml(c.paper_title || 'Reference')}</span>
+          <span class="font-body-md text-[11px] text-outline mt-0.5">${escapeHtml((c.authors || []).slice(0, 2).join(', '))} et al.</span>
+        </div>
+        <div class="flex items-center gap-3 mt-1 relative z-10">
+          <div class="flex-grow h-1 bg-white/10 rounded-full overflow-hidden">
+            <div class="h-full bg-secondary rounded-full transition-all duration-500" style="width: ${relScore}%"></div>
+          </div>
+          <span class="font-label-mono text-[9px] text-secondary shrink-0 font-semibold">${relScore}% REL</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = html;
+  if (mobileContainer) {
+    mobileContainer.innerHTML = html;
+  }
+}
+
+let currentActiveNodeIndex = -1;
+
+// ── Initialize Agent Trace Nodes timeline ──
+function initializeTraceTimeline() {
+  currentActiveNodeIndex = -1;
+  const container = document.getElementById('trace-nodes-list');
+  const mobileContainer = document.getElementById('mobile-trace-nodes-list');
+  
+  const generateNodeHtml = (suffix) => {
+    return timelineNodes.map((n) => `
+      <div class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center select-none" 
+           style="left: ${n.left}%; top: ${n.top}%;" 
+           id="trace-node-${n.id}${suffix}">
+        <!-- Node indicator dot/orb -->
+        <div class="w-5 h-5 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10 transition-all duration-300" id="trace-node-orb-${n.id}${suffix}">
+          <div class="w-1 h-1 rounded-full bg-outline-variant" id="trace-node-dot-${n.id}${suffix}"></div>
+        </div>
+        <span class="font-label-mono text-[9px] text-outline-variant font-medium mt-1 whitespace-nowrap bg-background/80 px-1 rounded-sm select-none transition-all duration-300" id="trace-node-text-${n.id}${suffix}">${n.label}</span>
+        <span class="text-[9px] text-outline/50 hidden transition-all duration-300" id="trace-node-time-${n.id}${suffix}"></span>
+      </div>`).join('');
+  };
+
+  if (container) container.innerHTML = generateNodeHtml('');
+  if (mobileContainer) mobileContainer.innerHTML = generateNodeHtml('-mobile');
+
+  // Draw initial dim lines
+  setTimeout(() => {
+    drawConstellationLines('');
+    drawConstellationLines('-mobile');
+  }, 50);
+}
+
+function drawConstellationLines(suffix) {
+  const container = document.getElementById(suffix === '-mobile' ? 'mobile-trace-nodes-container-mobile' : 'trace-nodes-container');
+  const group = document.getElementById(suffix === '-mobile' ? 'mobile-trace-svg-group-mobile' : 'trace-svg-group');
+  if (!container || !group) return;
+
+  group.innerHTML = '';
+  const containerRect = container.getBoundingClientRect();
+
+  for (let i = 0; i < timelineNodes.length - 1; i++) {
+    const curr = timelineNodes[i];
+    const next = timelineNodes[i + 1];
+
+    const currEl = document.getElementById(`trace-node-orb-${curr.id}${suffix}`);
+    const nextEl = document.getElementById(`trace-node-orb-${next.id}${suffix}`);
+
+    if (currEl && nextEl) {
+      const currRect = currEl.getBoundingClientRect();
+      const nextRect = nextEl.getBoundingClientRect();
+
+      const x1 = (currRect.left + currRect.width / 2) - containerRect.left;
+      const y1 = (currRect.top + currRect.height / 2) - containerRect.top;
+      const x2 = (nextRect.left + nextRect.width / 2) - containerRect.left;
+      const y2 = (nextRect.top + nextRect.height / 2) - containerRect.top;
+
+      const currState = getNodeState(curr.id, suffix);
+      const nextState = getNodeState(next.id, suffix);
+
+      let stroke = 'rgba(255,255,255,0.06)';
+      let dasharray = 'none';
+      let filter = 'none';
+      let animateFlow = false;
+
+      if (nextState === 'completed' || nextState === 'active') {
+        stroke = 'url(#trace-grad)';
+        filter = 'url(#trace-glow)';
+      } else if (currState === 'active') {
+        stroke = '#8b80ff';
+        dasharray = '4 4';
+        filter = 'url(#trace-glow)';
+        animateFlow = true;
+      }
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      line.setAttribute('stroke', stroke);
+      line.setAttribute('stroke-width', '1.5');
+      if (dasharray !== 'none') line.setAttribute('stroke-dasharray', dasharray);
+      if (filter !== 'none') line.setAttribute('filter', filter);
+      if (animateFlow) line.classList.add('line-flow-animated');
+
+      group.appendChild(line);
+    }
+  }
+}
+
+function getNodeState(nodeId, suffix) {
+  const orb = document.getElementById(`trace-node-orb-${nodeId}${suffix}`);
+  if (!orb) return 'awaiting';
+  if (orb.innerHTML.includes('check')) return 'completed';
+  if (orb.className.includes('node-active-glow')) return 'active';
+  return 'awaiting';
+}
+
+function advanceTraceTimeline(stepDescription, index) {
+  const lower = stepDescription.toLowerCase();
+  
+  // Define semantic mappings of trace strings to node stages
+  const mappings = {
+    'parse': ['parse', 'parsing', 'ingest', 'input', 'reading', 'starting'],
+    'intent': ['intent', 'classify', 'classification', 'query type', 'classifying'],
+    'strategy': ['strategy', 'decompose', 'sub-question', 'planning', 'decomposing'],
+    'retrieve': ['retrieve', 'retrieval', 'search', 'hybrid', 'bm25', 'vector', 'found'],
+    'rank': ['rank', 'rerank', 'reranking'],
+    'extract': ['extract', 'extraction', 'chunk', 'relevant chunks'],
+    'cross': ['cross-ref', 'citation context', 'citations', 'build context', 'resolving'],
+    'synthesize': ['synthesize', 'generate', 'generating', 'answer', 'llm'],
+    'verify': ['verify', 'verification', 'verify citations', 'grounding', 'validating'],
+    'format': ['format', 'formatting', 'metadata', 'resolve metadata'],
+    'review': ['review', 'evaluation', 'complete', 'done', 'final']
+  };
+
+  let matchedIndex = -1;
+  for (let i = 0; i < timelineNodes.length; i++) {
+    const node = timelineNodes[i];
+    const keywords = mappings[node.id] || [];
+    if (keywords.some(k => lower.includes(k))) {
+      matchedIndex = i;
+      break;
+    }
+  }
+
+  // Smoothly progress forward
+  if (matchedIndex !== -1 && matchedIndex > currentActiveNodeIndex) {
+    currentActiveNodeIndex = matchedIndex;
+  } else if (matchedIndex === -1 && index !== undefined) {
+    // Fallback: if no direct keyword matches, increment if index is advancing
+    const expectedIndex = Math.min(index - 1, timelineNodes.length - 1);
+    if (expectedIndex > currentActiveNodeIndex) {
+      currentActiveNodeIndex = expectedIndex;
+    }
+  }
+
+  // Update node visual states
+  timelineNodes.forEach((n, i) => {
+    updateNodeUI(n.id, '', i, currentActiveNodeIndex, stepDescription);
+    updateNodeUI(n.id, '-mobile', i, currentActiveNodeIndex, stepDescription);
+  });
+
+  // Re-draw constellation lines
+  drawConstellationLines('');
+  drawConstellationLines('-mobile');
+}
+
+function updateNodeUI(nodeId, suffix, i, nodeIndex, stepDescription) {
+  const nodeRow = document.getElementById(`trace-node-${nodeId}${suffix}`);
+  if (!nodeRow) return;
+  const orb = document.getElementById(`trace-node-orb-${nodeId}${suffix}`);
+  const text = document.getElementById(`trace-node-text-${nodeId}${suffix}`);
+  const timeText = document.getElementById(`trace-node-time-${nodeId}${suffix}`);
+
+  if (i < nodeIndex) {
+    // Completed node
+    orb.className = "w-5 h-5 rounded-full bg-surface border border-secondary-container flex items-center justify-center z-10 shadow-[0_0_8px_rgba(0,208,177,0.2)] transition-all duration-300";
+    orb.innerHTML = `<span class="material-symbols-outlined text-[12px] text-secondary-container">check</span>`;
+    text.className = "font-label-mono text-[9px] text-secondary-container font-medium mt-1 whitespace-nowrap bg-background/80 px-1 rounded-sm select-none transition-all duration-300";
+  } else if (i === nodeIndex) {
+    // Active node
+    orb.className = "w-7 h-7 rounded-full bg-surface border-2 border-primary-container flex items-center justify-center z-10 node-active-glow animate-pulse -mt-1 transition-all duration-300";
+    orb.innerHTML = `<div class="w-2.5 h-2.5 rounded-full bg-primary-container animate-ping"></div>`;
+    text.className = "font-label-mono text-[11px] text-primary font-bold drop-shadow-[0_0_4px_rgba(197,192,255,0.5)] mt-1 whitespace-nowrap bg-background/80 px-1 rounded-sm select-none transition-all duration-300";
+    
+    if (timeText) {
+      timeText.classList.remove('hidden');
+      timeText.textContent = stepDescription.substring(0, 15) + '...';
+      timeText.className = "text-[8px] text-primary-container/80 animate-pulse mt-0.5 whitespace-nowrap bg-background/80 px-0.5 rounded-sm transition-all duration-300";
+    }
+  } else {
+    // Awaiting node
+    orb.className = "w-5 h-5 rounded-full bg-surface border border-outline-variant flex items-center justify-center z-10 transition-all duration-300";
+    orb.innerHTML = `<div class="w-1 h-1 rounded-full bg-outline-variant"></div>`;
+    text.className = "font-label-mono text-[9px] text-outline-variant font-medium mt-1 whitespace-nowrap bg-background/80 px-1 rounded-sm select-none transition-all duration-300";
+    if (timeText) timeText.classList.add('hidden');
+  }
+}
+
+function completeTraceTimeline(elapsedTime) {
+  // Mark all nodes as completed
+  timelineNodes.forEach((n, i) => {
+    completeNodeUI(n.id, '', i, elapsedTime);
+    completeNodeUI(n.id, '-mobile', i, elapsedTime);
+  });
+
+  drawConstellationLines('');
+  drawConstellationLines('-mobile');
+}
+
+function completeNodeUI(nodeId, suffix, i, elapsedTime) {
+  const nodeRow = document.getElementById(`trace-node-${nodeId}${suffix}`);
+  if (!nodeRow) return;
+  const orb = document.getElementById(`trace-node-orb-${nodeId}${suffix}`);
+  const text = document.getElementById(`trace-node-text-${nodeId}${suffix}`);
+  const timeText = document.getElementById(`trace-node-time-${nodeId}${suffix}`);
+
+  orb.className = "w-5 h-5 rounded-full bg-surface border border-secondary-container flex items-center justify-center z-10 shadow-[0_0_8px_rgba(0,208,177,0.2)] transition-all duration-300";
+  orb.innerHTML = `<span class="material-symbols-outlined text-[12px] text-secondary-container">check</span>`;
+  text.className = "font-label-mono text-[9px] text-secondary-container font-medium mt-1 whitespace-nowrap bg-background/80 px-1 rounded-sm select-none transition-all duration-300";
+  
+  if (i === timelineNodes.length - 1 && timeText) {
+    timeText.classList.remove('hidden');
+    timeText.textContent = `${elapsedTime}s`;
+    timeText.className = "text-[8px] text-secondary/60 mt-0.5 bg-background/80 px-0.5 rounded-sm transition-all duration-300";
+  }
+}
+
+function updateTraceBadge(status) {
+  const badge = document.getElementById('agent-trace-badge');
+  const mobileBadgeText = document.getElementById('mobile-trace-badge-text');
+  const mobileBadgeDot = document.getElementById('mobile-trace-badge-dot');
+  const mobileBadgeDotPing = document.getElementById('mobile-trace-badge-dot-ping');
+  
+  if (badge) {
+    badge.textContent = status;
+    if (status === 'ACTIVE') {
+      badge.className = "font-label-mono text-[10px] text-primary-container bg-primary-container/10 border border-primary-container/20 px-2 py-0.5 rounded-full animate-pulse";
+    } else if (status === 'COMPLETED') {
+      badge.className = "font-label-mono text-[10px] text-secondary bg-secondary/10 border border-secondary/20 px-2 py-1 rounded-full";
+    } else if (status === 'ERROR') {
+      badge.className = "font-label-mono text-[10px] text-error bg-error/10 border border-error/20 px-2 py-1 rounded-full";
+    } else {
+      badge.className = "font-label-mono text-[10px] text-outline bg-white/5 border border-white/10 px-2 py-1 rounded-full";
+    }
+  }
+  
+  if (mobileBadgeText) {
+    mobileBadgeText.textContent = status;
+    if (status === 'ACTIVE') {
+      mobileBadgeText.className = "font-label-mono text-label-mono text-secondary animate-pulse";
+      if (mobileBadgeDot) mobileBadgeDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary shadow-[0_0_8px_rgba(88,251,218,0.6)]";
+      if (mobileBadgeDotPing) {
+        mobileBadgeDotPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75";
+        mobileBadgeDotPing.classList.remove('hidden');
+      }
+    } else if (status === 'COMPLETED') {
+      mobileBadgeText.className = "font-label-mono text-label-mono text-secondary";
+      if (mobileBadgeDot) mobileBadgeDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary";
+      if (mobileBadgeDotPing) mobileBadgeDotPing.className = "hidden";
+    } else if (status === 'ERROR') {
+      mobileBadgeText.className = "font-label-mono text-label-mono text-error";
+      if (mobileBadgeDot) mobileBadgeDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-error";
+      if (mobileBadgeDotPing) mobileBadgeDotPing.className = "hidden";
+    } else {
+      mobileBadgeText.className = "font-label-mono text-label-mono text-outline";
+      if (mobileBadgeDot) mobileBadgeDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-outline";
+      if (mobileBadgeDotPing) mobileBadgeDotPing.className = "hidden";
+    }
+  }
+}
+
+// ── Mobile Interaction Controls ──
+function toggleMobileDrawer(open) {
+  const drawer = document.getElementById('mobile-drawer');
+  const overlay = document.getElementById('drawer-overlay');
+  if (!drawer || !overlay) return;
+  
+  const shouldOpen = open !== undefined ? open : !drawer.classList.contains('open');
+  
+  if (shouldOpen) {
+    overlay.classList.remove('hidden');
+    void overlay.offsetWidth;
+    overlay.classList.remove('opacity-0');
+    overlay.classList.add('opacity-100');
+    drawer.classList.add('open');
+  } else {
+    overlay.classList.remove('opacity-100');
+    overlay.classList.add('opacity-0');
+    drawer.classList.remove('open');
+    setTimeout(() => {
+      if (!drawer.classList.contains('open')) {
+        overlay.classList.add('hidden');
+      }
+    }, 300);
+  }
+}
+
+function toggleMobileTraceSheet(open) {
+  const sheet = document.getElementById('mobile-trace-sheet');
+  const overlay = document.getElementById('drawer-overlay');
+  if (!sheet || !overlay) return;
+  
+  const shouldOpen = open !== undefined ? open : !sheet.classList.contains('open');
+  
+  if (shouldOpen) {
+    overlay.classList.remove('hidden');
+    void overlay.offsetWidth;
+    overlay.classList.remove('opacity-0');
+    overlay.classList.add('opacity-100');
+    overlay.style.zIndex = '45'; // Sit above footer nav, behind sheet
+    sheet.classList.add('open');
+  } else {
+    overlay.classList.remove('opacity-100');
+    overlay.classList.add('opacity-0');
+    sheet.classList.remove('open');
+    setTimeout(() => {
+      if (!sheet.classList.contains('open')) {
+        overlay.classList.add('hidden');
+        overlay.style.zIndex = '40';
+      }
+    }, 300);
+  }
+}
+
+function closeAllMobilePanels() {
+  toggleMobileDrawer(false);
+  toggleMobileTraceSheet(false);
+}
+
+// ── Recent sessions list (Sidebar) ──
+function addRecentSession(query) {
+  // Add to state list
+  state.recentThreads = [query, ...state.recentThreads.filter(q => q !== query)].slice(0, 5);
+  const container = document.getElementById('thread-list');
+  const mobileContainer = document.getElementById('mobile-thread-list');
+  
+  if (!state.recentThreads.length) {
+    const emptyHtml = `<p class="font-body-md text-xs text-outline/40 px-4 py-2 italic select-none">No active threads</p>`;
+    if (container) container.innerHTML = emptyHtml;
+    if (mobileContainer) mobileContainer.innerHTML = emptyHtml;
+    return;
+  }
+
+  const html = state.recentThreads.map((q, i) => {
+    const isCurrent = i === 0;
+    const dotColor = isCurrent ? 'bg-secondary-fixed shadow-[0_0_8px_rgba(88,251,218,0.4)]' : 'bg-primary shadow-[0_0_8px_rgba(197,192,255,0.4)]';
+    const textColor = isCurrent ? 'text-on-surface font-semibold' : 'text-outline hover:text-on-surface';
+    const activeBg = isCurrent ? 'bg-surface-container/50 border border-white/5' : 'hover:bg-white/5';
+    
+    return `
+      <div onclick="setQuery('${escapeHtml(q)}'); toggleMobileDrawer(false);" class="group flex flex-col px-4 py-3 rounded-xl cursor-pointer ${activeBg} transition-colors">
+        <div class="flex items-center gap-2 mb-1">
+          <div class="w-2 h-2 rounded-full ${dotColor}"></div>
+          <span class="font-body-md text-body-md ${textColor} truncate max-w-[170px]">${escapeHtml(q)}</span>
+        </div>
+        <span class="font-label-mono text-label-mono text-outline-variant pl-4">Active Session</span>
+      </div>`;
+  }).join('');
+
+  if (container) container.innerHTML = html;
+  if (mobileContainer) mobileContainer.innerHTML = html;
+}
+
+// ── Submit rating feedback ──
+async function submitFeedback(rating) {
+  if (!state.sessionId) return;
+  try {
+    await apiFetch('/feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        query_id: state.sessionId,
+        rating: rating,
+      }),
+    });
+    alert(`Feedback (${rating}) recorded. Thank you!`);
+  } catch (err) {
+    console.error('Feedback recording failed:', err);
+  }
+}
+
+// ── Copy Answer Text ──
+function copyAnswerText() {
+  const rendered = document.getElementById('answer-rendered');
+  if (!rendered) return;
+  navigator.clipboard.writeText(rendered.innerText)
+    .then(() => alert('Answer copied to clipboard!'))
+    .catch(err => console.error('Clipboard copy failed:', err));
+}
+
+
+
+// ── Load Papers (Library Grid View) ──
+async function loadPapers(searchQuery = '') {
+  const grid = document.getElementById('library-grid');
+  grid.innerHTML = `
+    <div class="col-span-full py-16 text-center">
+      <div class="skeleton h-12 w-12 mx-auto rounded-full mb-4 animate-spin"></div>
+      <p class="font-body-md text-outline">Loading indexed papers from index...</p>
+    </div>`;
+
+  try {
+    const searchParam = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
+    const data = await apiFetch(`/papers?page=1&per_page=100${searchParam}`);
+    state.papers = data.papers || [];
+    renderPaperGrid(state.papers);
+  } catch (err) {
+    grid.innerHTML = `
+      <div class="col-span-full py-12 text-center text-error border border-error/25 bg-error/5 rounded-xl">
+        <span class="material-symbols-outlined text-4xl mb-2">error</span>
+        <p class="font-body-md text-sm font-semibold">Semantic Index Connection Failed</p>
+        <p class="text-xs text-outline-variant mt-1">${escapeHtml(err.message)}</p>
+      </div>`;
+  }
+}
+
+let searchDebounceTimeout = null;
+function filterPapers() {
+  clearTimeout(searchDebounceTimeout);
+  searchDebounceTimeout = setTimeout(() => {
+    const query = document.getElementById('library-search').value.trim();
+    loadPapers(query);
+  }, 300);
+}
+
+function renderPaperGrid(papers) {
+  const grid = document.getElementById('library-grid');
+  if (!papers.length) {
+    grid.innerHTML = `
+      <div class="col-span-full flex flex-col items-center justify-center py-20 text-center">
+        <span class="material-symbols-outlined text-5xl text-outline-variant/30 mb-3">library_books</span>
+        <p class="font-body-lg text-outline">No research papers indexed yet.</p>
+        <button onclick="showUploadModal()" class="mt-4 gradient-btn text-white text-xs font-semibold px-4 py-2 rounded-full hover:opacity-90 transition-all">Upload your first paper</button>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = papers.map((p, i) => {
+    const authorStr = (p.authors || []).slice(0, 2).join(', ') + ((p.authors || []).length > 2 ? ' et al.' : '');
+    const categories = (p.categories || []).map(c => `
+      <span class="font-label-mono text-[11px] px-2 py-1 rounded bg-tertiary-container/10 text-tertiary border border-tertiary-container/30 uppercase tracking-widest">${escapeHtml(c)}</span>
+    `).join('');
+    
+    // Gradient border theme based on count
+    const borderGrad = i % 2 === 0 ? 'from-secondary-fixed to-primary' : 'from-tertiary-container to-primary';
+    const gradientAccent = i % 2 === 0 ? 'from-primary/5' : 'from-tertiary-container/5';
+
+    return `
+      <article onclick="setQuery('Summarize the paper: ${escapeHtml(p.title)}')" class="glass-panel rounded-xl p-6 flex flex-col group relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:bg-surface-container/80 cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br ${gradientAccent} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r ${borderGrad} opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        
+        <div class="flex justify-between items-start mb-4 z-10">
+          <div class="flex flex-wrap gap-1">${categories}</div>
+          <div class="flex items-center gap-2 bg-surface-container-highest/50 px-2 py-1 rounded-full border border-white/5">
+            <span class="font-label-mono text-[10px] text-secondary">Indexed</span>
+            <div class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_6px_rgba(88,251,218,0.6)]"></div>
+          </div>
+        </div>
+
+        <h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-2 z-10 leading-tight group-hover:text-primary-fixed-dim transition-colors line-clamp-2">${escapeHtml(p.title)}</h3>
+        <p class="font-body-md text-body-md text-outline z-10 mb-6">${escapeHtml(authorStr)}</p>
+        
+        <div class="mt-auto pt-4 border-t border-white/5 flex items-center justify-between z-10">
+          <span class="font-label-mono text-[12px] text-outline-variant flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]">description</span>
+            PDF · ${p.chunk_count || 0} Chunks
+          </span>
+          <button class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors text-on-surface">
+            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+
+
+// ── Upload Paper Modal Controls ──
+function showUploadModal() {
+  document.getElementById('upload-modal').classList.remove('hidden');
+  document.getElementById('upload-modal').classList.add('flex');
+}
+
+function hideUploadModal() {
+  document.getElementById('upload-modal').classList.add('hidden');
+  document.getElementById('upload-modal').classList.remove('flex');
+  resetUploadForm();
+}
+
+function resetUploadForm() {
+  state.uploadFile = null;
+  document.getElementById('upload-file').value = '';
+  document.getElementById('upload-title').value = '';
+  document.getElementById('upload-authors').value = '';
+  document.getElementById('upload-categories').value = '';
+  document.getElementById('upload-filename').classList.add('hidden');
+  document.getElementById('extract-badge').classList.add('hidden');
+  document.getElementById('upload-status').textContent = '';
+  document.getElementById('upload-btn').disabled = true;
+}
+
+function handleDrop(e) {
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') {
+    state.uploadFile = file;
+    onFileSelected(file);
+  }
+}
+
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (file) {
+    state.uploadFile = file;
+    onFileSelected(file);
+  }
+}
+
+function handleQuickAttach(input) {
+  const file = input.files[0];
+  if (file) {
+    state.uploadFile = file;
+    showUploadModal();
+    onFileSelected(file);
+  }
+}
+
+async function onFileSelected(file) {
+  const filenameDisplay = document.getElementById('upload-filename');
+  filenameDisplay.textContent = file.name;
+  filenameDisplay.classList.remove('hidden');
+  document.getElementById('upload-btn').disabled = false;
+  document.getElementById('upload-status').textContent = 'Extracting layout structure...';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(API_BASE + '/api/v1/papers/extract-metadata', { method: 'POST', body: formData });
+    if (res.ok) {
+      const meta = await res.json();
+      if (meta.title) document.getElementById('upload-title').value = meta.title;
+      if (meta.authors && meta.authors.length) document.getElementById('upload-authors').value = meta.authors.join(', ');
+      document.getElementById('extract-badge').classList.remove('hidden');
+      document.getElementById('upload-status').textContent = 'Metadata extracted successfully';
+    } else {
+      document.getElementById('upload-status').textContent = 'Ready for parsing (manual details optional)';
+    }
+  } catch {
+    document.getElementById('upload-status').textContent = 'Ready for parsing';
+  }
+}
+
+async function handleUpload() {
+  if (!state.uploadFile) return;
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  document.getElementById('upload-status').textContent = 'Parsing and indexing document chunks...';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', state.uploadFile);
+    formData.append('title', document.getElementById('upload-title').value);
+    formData.append('authors', document.getElementById('upload-authors').value);
+    formData.append('categories', document.getElementById('upload-categories').value);
+
+    const res = await fetch(API_BASE + '/api/v1/papers/upload', { method: 'POST', body: formData });
+    if (res.ok) {
+      const data = await res.json();
+      const chunks = data.stats?.chunks_indexed || 0;
+      document.getElementById('upload-status').innerHTML = `<span class="text-secondary">✓ Success! Indexed ${chunks} chunks</span>`;
+      setTimeout(() => {
+        hideUploadModal();
+        if (state.view === 'library') loadPapers();
+      }, 1500);
+    } else {
+      const text = await res.text();
+      document.getElementById('upload-status').innerHTML = `<span class="text-error">✗ Upload failed: ${escapeHtml(text)}</span>`;
+      btn.disabled = false;
+    }
+  } catch (err) {
+    document.getElementById('upload-status').innerHTML = `<span class="text-error">✗ API Connection Failed</span>`;
+    btn.disabled = false;
+  }
+}
+
+// ── System Health Popover Controls ──
+let popoverOpen = false;
+function toggleStatusPopover(e) {
+  e.stopPropagation();
+  popoverOpen = !popoverOpen;
+  const popover = document.getElementById('status-popover');
+  if (popoverOpen) {
+    popover.classList.remove('hidden');
+    setTimeout(() => {
+      popover.classList.remove('opacity-0', 'translate-y-[-10px]');
+      popover.classList.add('opacity-100', 'translate-y-0');
+    }, 10);
+    updateHealthPopover();
+  } else {
+    closePopover();
+  }
+}
+
+function closePopover() {
+  const popover = document.getElementById('status-popover');
+  popover.classList.remove('opacity-100', 'translate-y-0');
+  popover.classList.add('opacity-0', 'translate-y-[-10px]');
+  setTimeout(() => {
+    popover.classList.add('hidden');
+  }, 200);
+  popoverOpen = false;
+}
+
+document.addEventListener('click', (e) => {
+  const popover = document.getElementById('status-popover');
+  const toggle = document.getElementById('status-toggle');
+  if (popoverOpen && !popover.contains(e.target) && !toggle.contains(e.target)) {
+    closePopover();
+  }
+});
+
+async function updateHealthPopover() {
+  const list = document.getElementById('status-list');
+  const dot = document.getElementById('status-toggle-dot');
+  
+  try {
+    const res = await fetch(API_BASE + '/api/v1/health');
+    const health = await res.json();
+    
+    if (health.status === 'healthy') {
+      dot.className = "w-3 h-3 rounded-full bg-secondary shadow-[0_0_8px_rgba(88,251,218,0.6)]";
+    } else {
+      dot.className = "w-3 h-3 rounded-full bg-tertiary-container shadow-[0_0_8px_rgba(239,100,76,0.6)]";
+    }
+
+    const services = health.services || [];
+    let itemsHtml = '';
+    let hasWarn = false;
+
+    services.forEach(srv => {
+      const isOK = srv.status === 'healthy' || srv.status === 'connected';
+      const label = isOK ? 'OK' : 'WARN';
+      const labelColor = isOK ? 'text-secondary' : 'text-tertiary-container';
+      const bulletColor = isOK ? 'bg-secondary' : 'bg-tertiary-container';
+      if (!isOK) hasWarn = true;
+
+      itemsHtml += `
+        <li class="flex items-center justify-between text-sm">
+          <span class="font-body-md text-on-surface-variant">${escapeHtml(srv.name)}</span>
+          <div class="flex items-center gap-2">
+            <span class="font-label-mono text-[10px] ${labelColor}">${label}</span>
+            <div class="w-2 h-2 rounded-full ${bulletColor}"></div>
+          </div>
+        </li>`;
+    });
+
+    list.innerHTML = itemsHtml;
+    
+    // Update top header status label
+    const headerStatus = document.getElementById('research-api-status');
+    const paperCount = await apiFetch('/papers?page=1&per_page=1').then(d => d.total).catch(() => 0);
+    if (headerStatus) {
+      headerStatus.innerHTML = `
+        <span class="relative flex h-3 w-3"><span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span></span>
+        Online · ${paperCount} papers indexed`;
+    }
+  } catch (err) {
+    dot.className = "w-3 h-3 rounded-full bg-error shadow-[0_0_8px_rgba(255,180,166,0.6)]";
+    list.innerHTML = `
+      <li class="text-xs text-error font-mono text-center py-2">
+        API Connection Offline
+      </li>`;
+    const headerStatus = document.getElementById('research-api-status');
+    if (headerStatus) {
+      headerStatus.innerHTML = `
+        <span class="relative flex h-3 w-3"><span class="relative inline-flex rounded-full h-3 w-3 bg-error"></span></span>
+        Offline`;
+    }
+  }
+}
+
+// ── Langfuse Diagnostics & RAGAS Evaluations ──
+async function updateDiagnostics() {
+  if (state.view !== 'settings') return;
+  
+  try {
+    const res = await apiFetch('/diagnostics/langfuse');
+    const label = document.getElementById('langfuse-status-label');
+    const icon = document.getElementById('langfuse-status-icon');
+    const pubStatus = document.getElementById('langfuse-diag-pub');
+    const secStatus = document.getElementById('langfuse-diag-sec');
+    const hostStatus = document.getElementById('langfuse-diag-host');
+    
+    if (label) {
+      label.textContent = res.status;
+      if (res.status === 'CONNECTED') {
+        label.className = "font-display text-xl mt-2 text-secondary drop-shadow-[0_0_8px_rgba(88,251,218,0.4)]";
+        icon.className = "material-symbols-outlined text-4xl mb-2 text-secondary animate-pulse";
+      } else {
+        label.className = "font-display text-xl mt-2 text-error drop-shadow-[0_0_8px_rgba(255,180,166,0.4)]";
+        icon.className = "material-symbols-outlined text-4xl mb-2 text-outline-variant";
+      }
+    }
+    
+    if (pubStatus) pubStatus.textContent = res.public_key_configured ? 'CONFIGURED' : 'MISSING';
+    if (secStatus) secStatus.textContent = res.secret_key_configured ? 'CONFIGURED' : 'MISSING';
+    if (hostStatus) hostStatus.textContent = res.host || 'http://localhost:3001';
+  } catch (err) {
+    console.error('Failed to load Langfuse diagnostics:', err);
+  }
+  
+  try {
+    const res = await apiFetch('/eval/status');
+    updateEvalUI(res);
+  } catch (err) {
+    console.error('Failed to load evaluation status:', err);
+  }
+}
+
+function updateEvalUI(data) {
+  const faith = document.getElementById('eval-metric-faith');
+  const relevancy = document.getElementById('eval-metric-relevancy');
+  const lastRun = document.getElementById('eval-last-run-label');
+  const btn = document.getElementById('eval-run-btn');
+  const statusMessage = document.getElementById('eval-status-message');
+  
+  if (data.status === 'RUNNING') {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="material-symbols-outlined text-[18px] animate-spin">sync</span> Running RAGAS Evaluation...`;
+    }
+    if (statusMessage) statusMessage.innerHTML = `<span class="text-secondary animate-pulse">✓ Evaluation running in background. Fetching trace samples...</span>`;
+  } else {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span class="material-symbols-outlined text-[18px]">play_circle</span> Run RAGAS Evaluation`;
+    }
+    if (data.status === 'COMPLETED' || data.status === 'NOT_RUN') {
+      if (statusMessage) statusMessage.textContent = 'Evaluates a sample of recent thread traces or baseline golden datasets.';
+    } else if (data.status === 'FAILED') {
+      if (statusMessage) statusMessage.innerHTML = `<span class="text-error">✗ Evaluation failed: ${escapeHtml(data.error || 'Unknown error')}</span>`;
+    }
+  }
+  
+  if (data.scores) {
+    if (faith) faith.textContent = typeof data.scores.faithfulness === 'number' ? (data.scores.faithfulness * 100).toFixed(0) + '%' : '--';
+    if (relevancy) relevancy.textContent = typeof data.scores.answer_relevancy === 'number' ? (data.scores.answer_relevancy * 100).toFixed(0) + '%' : '--';
+  }
+  
+  if (data.timestamp) {
+    const date = new Date(data.timestamp);
+    if (lastRun) lastRun.textContent = `Last Run: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+  } else {
+    if (lastRun) lastRun.textContent = `Last Run: Never executed`;
+  }
+}
+
+async function runEvaluation() {
+  const btn = document.getElementById('eval-run-btn');
+  if (btn && btn.disabled) return;
+  
+  try {
+    await apiFetch('/eval/run', { method: 'POST' });
+    updateEvalUI({ status: 'RUNNING' });
+    startEvalPolling();
+  } catch (err) {
+    console.error('Failed to trigger evaluation:', err);
+  }
+}
+
+let evalPollInterval = null;
+function startEvalPolling() {
+  clearInterval(evalPollInterval);
+  evalPollInterval = setInterval(async () => {
+    try {
+      const res = await apiFetch('/eval/status');
+      updateEvalUI(res);
+      if (res.status !== 'RUNNING') {
+        clearInterval(evalPollInterval);
+      }
+    } catch (err) {
+      console.error('Polling evaluation status failed:', err);
+      clearInterval(evalPollInterval);
+    }
+  }, 3000);
+}
+
+// ── WebGL Constellation Shader ──
+function initShader() {
+  const canvas = document.getElementById('shader-canvas');
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+varying vec2 v_texCoord;
+
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+void main() {
+    vec2 uv = v_texCoord;
+    vec2 mouse = u_mouse / u_resolution;
+    
+    // Deep ink-navy base
+    vec3 color = vec3(0.039, 0.051, 0.078);
+    
+    // Ambient drift
+    vec2 drift = vec2(u_time * 0.02, u_time * 0.01);
+    
+    // Evidence Constellation Motif
+    vec2 grid = (uv + drift) * 12.0;
+    vec2 id = floor(grid);
+    vec2 g_uv = fract(grid) - 0.5;
+    
+    float h = hash(id);
+    if (h > 0.94) {
+        // Randomize node position within cell
+        vec2 node_pos = vec2(hash(id + 1.0), hash(id + 2.0)) - 0.5;
+        float dist = length(g_uv - node_pos);
+        
+        // Pulsing glow
+        float pulse = 0.6 + 0.4 * sin(u_time * 0.8 + h * 10.0);
+        float size = 0.02 * h;
+        
+        // Mouse interaction
+        float m_dist = length(uv - mouse);
+        size *= (1.0 + 1.5 * exp(-m_dist * 8.0));
+        
+        // Glowing points
+        float flare = smoothstep(size, 0.0, dist);
+        vec3 nodeColor = mix(vec3(0.486, 0.435, 1.0), vec3(0.184, 0.878, 0.753), h); // Violet to Teal
+        color += flare * nodeColor * pulse * 0.8;
+    }
+    
+    // Vignette for depth
+    color *= 1.0 - 0.4 * length(uv - 0.5);
+    
+    gl_FragColor = vec4(color, 1.0);
+}`;
+
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+}
+
+// ── Feedback Submission ──
+async function submitFeedback(rating, correctionText = null) {
+  const traceId = state.currentTraceId || '';
+  const queryId = state.currentQueryId || ('q-' + Math.random().toString(36).substr(2, 9));
+  
+  if (rating === 'down' && correctionText === null) {
+    showFeedbackModal();
+    return;
+  }
+
+  try {
+    const res = await fetch(API_BASE + '/api/v1/feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query_id: queryId,
+        rating: rating,
+        correction: correctionText,
+        trace_id: traceId
+      })
+    });
+    
+    if (res.ok) {
+      const upBtn = document.querySelector('button[title="Thumbs Up"]');
+      const downBtn = document.querySelector('button[title="Thumbs Down"]');
+      
+      if (rating === 'up') {
+        if (upBtn) {
+          upBtn.classList.remove('text-outline');
+          upBtn.classList.add('text-[#2cdebe]', 'bg-[#005346]/20');
+        }
+      } else {
+        if (downBtn) {
+          downBtn.classList.remove('text-outline');
+          downBtn.classList.add('text-[#ffb4ab]', 'bg-[#93000a]/20');
+        }
+        closeFeedbackModal();
+      }
+      
+      if (upBtn) upBtn.disabled = true;
+      if (downBtn) downBtn.disabled = true;
+    } else {
+      console.error('Feedback submission failed:', await res.text());
+    }
+  } catch (err) {
+    console.error('Error submitting feedback:', err);
+  }
+}
+
+function showFeedbackModal() {
+  const modal = document.getElementById('feedback-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      modal.classList.remove('opacity-0');
+      const box = modal.querySelector('.glass-panel');
+      if (box) box.classList.remove('scale-95');
+    }, 10);
+  }
+}
+
+function closeFeedbackModal() {
+  const modal = document.getElementById('feedback-modal');
+  if (modal) {
+    modal.classList.add('opacity-0');
+    const box = modal.querySelector('.glass-panel');
+    if (box) box.classList.add('scale-95');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 200);
+  }
+}
+
+function submitCorrection() {
+  const textarea = document.getElementById('feedback-correction-text');
+  const text = textarea ? textarea.value.trim() : '';
+  submitFeedback('down', text || 'User downvoted');
+}
+
+// Helper to escape HTML characters
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+// ── DOM Initialization ──
+document.addEventListener('DOMContentLoaded', () => {
+  initShader();
+  switchView('research');
+  updateHealthPopover();
+  
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({ breaks: true, gfm: true });
+  }
+
+  // Periodic health check every 15s
+  setInterval(updateHealthPopover, 15000);
+
+  // Redraw constellation lines when window is resized
+  window.addEventListener('resize', () => {
+    drawConstellationLines('');
+    drawConstellationLines('-mobile');
+  });
+});
+</script>
+
+<!-- Gemini-style Glassmorphic Feedback Modal -->
+<div id="feedback-modal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300">
+  <div class="glass-panel w-full max-w-md p-6 rounded-2xl flex flex-col gap-4 border border-white/10 shadow-2xl transform scale-95 transition-all duration-300">
+    <div class="flex items-center justify-between">
+      <h3 class="font-display text-lg font-semibold text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary text-[22px]">reviews</span>
+        Submit Correction
+      </h3>
+      <button onclick="closeFeedbackModal()" class="text-outline-variant hover:text-on-surface transition-colors cursor-pointer">
+        <span class="material-symbols-outlined text-[20px]">close</span>
+      </button>
+    </div>
+    <p class="text-[13px] text-outline leading-relaxed">
+      Help us improve! Tell us what was incorrect (e.g. invalid claims, hallucinated citations) or provide a corrected answer.
+    </p>
+    <textarea id="feedback-correction-text" class="w-full h-32 bg-surface-container-highest/60 border border-white/5 rounded-xl p-3 text-[14px] text-on-surface focus:outline-none focus:border-secondary-fixed/40 transition-colors placeholder:text-outline-variant" placeholder="Describe the error or suggest correction..."></textarea>
+    <div class="flex justify-end gap-3 mt-2">
+      <button onclick="closeFeedbackModal()" class="px-4 py-2 rounded-xl text-[13px] font-medium hover:bg-white/5 transition-colors cursor-pointer">
+        Cancel
+      </button>
+      <button onclick="submitCorrection()" class="gradient-btn px-5 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 cursor-pointer">
+        Submit Feedback
+      </button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

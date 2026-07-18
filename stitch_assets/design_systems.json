@@ -1,0 +1,33 @@
+{
+  "Luminous Control": {
+    "displayName": "Luminous Control",
+    "theme": {
+      "colorMode": "DARK",
+      "roundness": "ROUND_EIGHT",
+      "customColor": "#7c6fff",
+      "bodyFont": "PLUS_JAKARTA_SANS",
+      "namedColors": {
+        "background": "#13140f",
+        "primary": "#c5c0ff",
+        "secondary": "#44edcc",
+        "tertiary": "#ffb4a6"
+      }
+    }
+  },
+  "Obsidian Gravity": {
+    "displayName": "Obsidian Gravity",
+    "theme": {
+      "colorMode": "DARK",
+      "font": "CHIVO",
+      "roundness": "ROUND_EIGHT",
+      "customColor": "#00f5ff",
+      "bodyFont": "INTER",
+      "namedColors": {
+        "background": "#0d1515",
+        "primary": "#e9feff",
+        "secondary": "#ffabef",
+        "tertiary": "#fff9f0"
+      }
+    }
+  }
+}

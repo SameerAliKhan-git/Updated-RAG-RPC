@@ -21,8 +21,8 @@ services:
       test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')\"" ]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 45s
+      retries: 5
+      start_period: 600s  # first boot downloads the embedding model (~2.2GB) into hf_cache
     env_file:
       - .env
     environment:
@@ -34,8 +34,12 @@ services:
     volumes:
       - ./src:/app/src
       - ./static:/app/static
+      - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
     networks:
       - corpus-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   # ── Data Stores ────────────────────────────────────────
@@ -127,23 +131,22 @@ services:
     networks:
       - corpus-network
 
-  # ── LLM Serving ────────────────────────────────────────
-  ollama:
-    image: ollama/ollama:0.11.2
-    container_name: corpus-ollama
-    # ports:
-    #   - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: [ "CMD", "ollama", "list" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - corpus-network
+#  ollama:
+#    image: ollama/ollama:0.11.2
+#    container_name: corpus-ollama
+#    # ports:
+#    #   - "11434:11434"
+#    volumes:
+#      - ollama_data:/root/.ollama
+#    healthcheck:
+#      test: [ "CMD", "ollama", "list" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 30s
+#    restart: unless-stopped
+#    networks:
+#      - corpus-network
 
   # ── Ingestion Orchestration ────────────────────────────
   airflow:
@@ -179,6 +182,8 @@ services:
     restart: unless-stopped
     networks:
       - corpus-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # ── Observability: Langfuse ────────────────────────────
   clickhouse:
@@ -374,16 +379,12 @@ services:
     networks:
       - corpus-network
 
-  gradio:
+  frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.gradio
-    container_name: corpus-gradio
+      context: ./frontend
+    container_name: corpus-frontend
     ports:
-      - "7860:7860"
-    environment:
-      - CORPUS_API_URL=http://api:8000
-      - API_KEY=change-me-to-a-real-api-key
+      - "7860:80"
     depends_on:
       api:
         condition: service_healthy
@@ -411,8 +412,12 @@ services:
       - REDIS__HOST=redis
     volumes:
       - ./src:/app/src
+      - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
     networks:
       - corpus-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   prometheus:
@@ -432,6 +437,7 @@ services:
     container_name: corpus-grafana
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
     ports:
       - "3002:3000"
     networks:
@@ -444,6 +450,7 @@ volumes:
   opensearch_data:
   ollama_data:
   redis_data:
+  hf_cache:
   airflow_logs:
   clickhouse_data:
   langfuse_postgres_data:

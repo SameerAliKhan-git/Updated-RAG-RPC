@@ -10,14 +10,14 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Optional
-
-import httpx
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 # Ensure project root is in path
 from pathlib import Path
+
+import httpx
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+
 project_root = str(Path(__file__).resolve().parent.parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -25,9 +25,7 @@ if project_root not in sys.path:
 from src.config import get_settings
 
 # Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 API_BASE = os.getenv("CORPUS_API_URL", "http://localhost:8000")
@@ -73,7 +71,9 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Call the backend `/ask-agentic` API and return response to the user."""
     query = " ".join(context.args) if context.args else ""
     if not query:
-        await update.message.reply_text("Please provide a question. Example: `/ask What are neural scaling laws?`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "Please provide a question. Example: `/ask What are neural scaling laws?`", parse_mode="Markdown"
+        )
         return
 
     chat_id = update.effective_chat.id if update.effective_chat else "unknown"
@@ -103,6 +103,7 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             # Simple conversion of [N] to hyperlinked [N](url) in telegram
             import re
+
             for c in citations:
                 cid = c.get("id")
                 pdf_url = c.get("pdf_url")
@@ -110,11 +111,7 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 if pdf_url:
                     # Escape title characters for telegram markdown v2 if necessary, but v1 is simpler
                     # Let's use standard Markdown
-                    formatted_answer = re.sub(
-                        r'\[({num})\]'.format(num=cid),
-                        f'[[\\1]]({pdf_url})',
-                        formatted_answer
-                    )
+                    formatted_answer = re.sub(rf"\[({cid})\]", f"[[\\1]]({pdf_url})", formatted_answer)
 
             if citations:
                 formatted_answer += "\n\n*Sources:*\n"

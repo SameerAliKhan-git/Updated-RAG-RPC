@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -13,8 +13,11 @@ from src.retrieval.hybrid_search import RetrievedChunk
 @pytest.fixture(autouse=True)
 def mock_llms():
     """Mock the reasoning and drafting LLMs for hermetic graph tests."""
-    with patch("src.agents.rag_graph.call_reasoning_llm") as mock_reasoning, \
-         patch("src.agents.rag_graph.call_drafting_llm") as mock_drafting:
+    with (
+        patch("src.agents.rag_graph.call_reasoning_llm") as mock_reasoning,
+        patch("src.agents.rag_graph.call_fast_llm") as mock_fast,
+        patch("src.agents.rag_graph.call_drafting_llm") as mock_drafting,
+    ):
 
         async def side_effect_reasoning(messages, *args, **kwargs):
             content = messages[0]["content"]
@@ -26,7 +29,7 @@ def mock_llms():
                 return '{"relevant": true, "confidence": "high"}'
             elif "citation verification" in content:
                 return '{"verified_claims": 1, "total_claims": 1, "issues": [], "grounding_note": "1 claim verified"}'
-            return '{}'
+            return "{}"
 
         async def side_effect_drafting(messages, *args, **kwargs):
             content = messages[0]["content"]
@@ -35,6 +38,7 @@ def mock_llms():
             return "Based on the selective state space models, they scale with linear complexity [1]."
 
         mock_reasoning.side_effect = side_effect_reasoning
+        mock_fast.side_effect = side_effect_reasoning  # router/grader/rewriter share prompts
         mock_drafting.side_effect = side_effect_drafting
         yield
 
@@ -44,11 +48,19 @@ class MockToolkit:
 
     def __init__(self, search_results=None, live_results=None):
         self.redis = None
+        self.db_session = None
         self.search_results = search_results or []
         self.live_results = live_results or []
         self.ingestion_triggered = []
 
-    async def hybrid_search(self, query: str, top_k: int = 15) -> list[RetrievedChunk]:
+    async def hybrid_search(
+        self,
+        query: str,
+        top_k: int = 15,
+        filters: dict | None = None,
+        *args,
+        **kwargs,
+    ) -> list[RetrievedChunk]:
         return self.search_results
 
     async def rerank_chunks(self, query: str, chunks: list[RetrievedChunk], top_k: int = 8) -> list[RetrievedChunk]:
@@ -88,10 +100,18 @@ async def test_graph_successful_rag_retrieval_and_generation():
     """Verify standard query returns grounded answer with metadata-matched citations."""
     chunks = [
         RetrievedChunk(
-            chunk_id="chunk_1", arxiv_id="2401.0001", paper_id="p1", section_title="Method", chunk_type="body",
-            text="We introduce selective state space models showing linear complexity.", title="Selective SSMs",
-            authors=["A. Gu", "T. Dao"], abstract="Selective SSMs.", categories=["cs.LG"],
-            published_date="2024-01-01", score=0.9
+            chunk_id="chunk_1",
+            arxiv_id="2401.0001",
+            paper_id="p1",
+            section_title="Method",
+            chunk_type="body",
+            text="We introduce selective state space models showing linear complexity.",
+            title="Selective SSMs",
+            authors=["A. Gu", "T. Dao"],
+            abstract="Selective SSMs.",
+            categories=["cs.LG"],
+            published_date="2024-01-01",
+            score=0.9,
         )
     ]
     toolkit = MockToolkit(search_results=chunks)

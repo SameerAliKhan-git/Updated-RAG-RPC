@@ -2,10 +2,12 @@
 
 import asyncio
 import sys
-import structlog
 
 # Add project root to path
 from pathlib import Path
+
+import structlog
+
 project_root = str(Path(__file__).resolve().parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -16,7 +18,7 @@ from src.config import get_settings
 from src.db.opensearch import create_opensearch_client, setup_opensearch_indices
 from src.db.postgres import Base, create_engine_and_session
 from src.ingestion.orchestrator import IngestionOrchestrator
-from src.models.paper import Paper, Chunk
+from src.models.paper import Chunk, Paper
 
 logger = structlog.get_logger(__name__)
 
@@ -47,7 +49,7 @@ async def main():
     with session_factory() as session:
         paper_count = session.query(Paper).count()
         chunk_count = session.query(Chunk).count()
-        processed = session.query(Paper).filter(Paper.pdf_processed == True).count()
+        processed = session.query(Paper).filter(Paper.pdf_processed.is_(True)).count()
         logger.info("final.counts", papers=paper_count, processed=processed, chunks=chunk_count)
 
     # OpenSearch count

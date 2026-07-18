@@ -5,10 +5,9 @@ Spec-compliant response shapes for /ask-agentic and /stream endpoints.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # ── Request Schemas ──────────────────────────────────────────────
 
@@ -17,8 +16,10 @@ class AskRequest(BaseModel):
     """Request body for POST /ask-agentic."""
 
     query: str = Field(..., min_length=1, max_length=2000, description="The research question to ask.")
-    session_id: Optional[str] = Field(None, description="Session ID for multi-turn conversations.")
-    filters: Optional[Dict[str, Any]] = Field(None, description="Optional metadata filters (categories, date_from, date_to, authors).")
+    session_id: str | None = Field(None, description="Session ID for multi-turn conversations.")
+    filters: dict[str, Any] | None = Field(
+        None, description="Optional metadata filters (categories, date_from, date_to, authors)."
+    )
 
 
 class SearchRequest(BaseModel):
@@ -26,12 +27,12 @@ class SearchRequest(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=2000)
     top_k: int = Field(default=10, ge=1, le=50)
-    filter_arxiv_id: Optional[str] = None
-    filter_chunk_type: Optional[str] = None
-    filter_categories: Optional[List[str]] = None
-    filter_authors: Optional[List[str]] = None
-    filter_date_from: Optional[str] = None
-    filter_date_to: Optional[str] = None
+    filter_arxiv_id: str | None = None
+    filter_chunk_type: str | None = None
+    filter_categories: list[str] | None = None
+    filter_authors: list[str] | None = None
+    filter_date_from: str | None = None
+    filter_date_to: str | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -39,8 +40,8 @@ class FeedbackRequest(BaseModel):
 
     query_id: str = Field(..., description="ID of the query being rated.")
     rating: str = Field(..., pattern="^(up|down)$", description="Thumbs up or down.")
-    correction: Optional[str] = Field(None, max_length=2000, description="Optional correction text.")
-    trace_id: Optional[str] = Field(None, description="Langfuse trace ID for linking.")
+    correction: str | None = Field(None, max_length=2000, description="Optional correction text.")
+    trace_id: str | None = Field(None, description="Langfuse trace ID for linking.")
 
 
 # ── Response Schemas ─────────────────────────────────────────────
@@ -51,7 +52,7 @@ class Citation(BaseModel):
 
     id: int
     paper_title: str
-    authors: List[str] = Field(default_factory=list)
+    authors: list[str] = Field(default_factory=list)
     arxiv_id: str
     arxiv_url: str
     pdf_url: str
@@ -71,11 +72,12 @@ class AgenticResponse(BaseModel):
     """
 
     answer_markdown: str
-    citations: List[Citation] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)
     grounding_note: str = ""
     query_type: str = ""
     session_id: str = ""
-    trace_events: List[str] = Field(default_factory=list)
+    trace_events: list[str] = Field(default_factory=list)
+    cached: bool = False
 
 
 class SearchResult(BaseModel):
@@ -95,7 +97,7 @@ class SearchResponse(BaseModel):
     """Response from POST /search."""
 
     query: str
-    results: List[SearchResult]
+    results: list[SearchResult]
     total: int
 
 
@@ -103,7 +105,7 @@ class StreamEvent(BaseModel):
     """A single Server-Sent Event for the /stream endpoint."""
 
     event: str  # "trace", "token", "citation", "done", "error"
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 class PaperSummary(BaseModel):
@@ -111,10 +113,10 @@ class PaperSummary(BaseModel):
 
     arxiv_id: str
     title: str
-    authors: List[str]
+    authors: list[str]
     abstract: str = ""
     published_date: str = ""
-    categories: List[str] = Field(default_factory=list)
+    categories: list[str] = Field(default_factory=list)
     pdf_processed: bool = False
     chunk_count: int = 0
 
@@ -122,7 +124,7 @@ class PaperSummary(BaseModel):
 class PaperListResponse(BaseModel):
     """Response from GET /papers."""
 
-    papers: List[PaperSummary]
+    papers: list[PaperSummary]
     total: int
     page: int
     per_page: int

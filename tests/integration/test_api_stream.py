@@ -8,14 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.main import create_app
-from src.retrieval.hybrid_search import RetrievedChunk
-
 
 @pytest.fixture
 def client_with_mocks():
     """Create test client with lifespan/connections mocked."""
     from fastapi import FastAPI
+
     from src.routers.ask import router
 
     app = FastAPI()
@@ -27,10 +25,14 @@ def client_with_mocks():
 
 
 @pytest.mark.asyncio
-@patch("src.agents.rag_graph.ask_corpus")
-async def test_stream_returns_sse_events(mock_ask, client_with_mocks):
+@patch("src.agents.rag_graph.ask_corpus_streaming")
+@patch("src.routers.ask._semantic_cache_store", new_callable=AsyncMock)
+@patch("src.routers.ask._semantic_cache_lookup", new_callable=AsyncMock)
+async def test_stream_returns_sse_events(mock_cache_lookup, mock_cache_store, mock_stream, client_with_mocks):
     """Verify that /stream SSE endpoint outputs formatted event streams for trace, tokens, and citations."""
-    mock_ask.return_value = {
+    mock_cache_lookup.return_value = (None, None)
+
+    result = {
         "answer_markdown": "Test answer.",
         "citations": [
             {
@@ -47,6 +49,15 @@ async def test_stream_returns_sse_events(mock_ask, client_with_mocks):
         "trace_events": ["starting query classification", "classification complete"],
         "query_type": "simple",
     }
+
+    async def fake_stream(**kwargs):
+        yield {"type": "trace", "step": "classifying query..."}
+        yield {"type": "trace", "step": "generating answer with citations..."}
+        yield {"type": "token", "text": "Test "}
+        yield {"type": "token", "text": "answer."}
+        yield {"type": "done", "result": result}
+
+    mock_stream.side_effect = fake_stream
 
     payload = {"query": "Complexity of SSMs"}
 

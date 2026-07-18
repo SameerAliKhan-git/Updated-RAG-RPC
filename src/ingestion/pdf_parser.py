@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import pypdfium2 as pdfium
 from docling.datamodel.base_models import InputFormat
@@ -36,7 +35,7 @@ class ParsedElement:
 class ParsedDocument:
     """Aggregated parsed result wrapper."""
 
-    def __init__(self, sections: List[ParsedSection], elements: List[ParsedElement], raw_text: str):
+    def __init__(self, sections: list[ParsedSection], elements: list[ParsedElement], raw_text: str):
         self.sections = sections
         self.elements = elements
         self.raw_text = raw_text
@@ -47,7 +46,7 @@ class DoclingParserService:
 
     def __init__(self):
         self.settings = get_settings()
-        self._converter: Optional[DocumentConverter] = None
+        self._converter: DocumentConverter | None = None
         self._warmed_up = False
 
     def _init_converter(self) -> None:
@@ -108,12 +107,12 @@ class DoclingParserService:
         result = self._converter.convert(str(pdf_path))
         doc = result.document
 
-        sections: List[ParsedSection] = []
-        elements: List[ParsedElement] = []
+        sections: list[ParsedSection] = []
+        elements: list[ParsedElement] = []
 
         # Current section tracker
         curr_title = "Introduction"
-        curr_text_lines: List[str] = []
+        curr_text_lines: list[str] = []
 
         # Rely on doc.texts to reconstruct chronological narrative text
         for text_item in doc.texts:
@@ -234,3 +233,126 @@ class DoclingParserService:
             raw_text = "\n\n".join(s.text for s in sections)
 
         return ParsedDocument(sections=sections, elements=elements, raw_text=raw_text)
+
+    def extract_metadata(self, pdf_path: Path) -> dict:
+        """Extract title, authors, and abstract from a PDF using layout analysis.
+
+        Uses the Docling converter's structural labels to identify:
+        - Title: first element labelled 'title'
+        - Authors: text between title and first section_header (heuristic)
+        - Abstract: text under the 'Abstract' section header
+
+        Returns:
+            dict with keys 'title', 'authors' (list[str]), 'abstract' (str)
+        """
+        import re as _re
+
+        self._validate_pdf(pdf_path)
+        self.warm_up()
+
+        logger.info(f"Extracting metadata from PDF: {pdf_path}")
+        result = self._converter.convert(str(pdf_path))
+        doc = result.document
+
+        title = ""
+        authors: list[str] = []
+        abstract = ""
+
+        # Walk through text items to find title, authors, and abstract
+        found_title = False
+        collecting_authors = False
+        collecting_abstract = False
+
+        for text_item in doc.texts:
+            label = getattr(text_item, "label", "")
+            text = text_item.text.strip() if text_item.text else ""
+
+            if not text:
+                continue
+
+            # Detect the title (first 'title' label)
+            if label == "title" and not found_title:
+                title = text
+                found_title = True
+                collecting_authors = True
+                continue
+
+            # After the title, collect author-like text until we hit a section header
+            if collecting_authors:
+                if label == "section_header":
+                    collecting_authors = False
+                    # Check if this section is the abstract
+                    if text.lower().strip().startswith("abstract"):
+                        collecting_abstract = True
+                    continue
+
+                # Heuristic: author lines are typically short, comma/and-separated names
+                # Skip lines that look like affiliations (contain @, university, dept, etc.)
+                line_lower = text.lower()
+                is_affiliation = any(
+                    kw in line_lower
+                    for kw in [
+                        "@",
+                        "university",
+                        "department",
+                        "institute",
+                        "laboratory",
+                        "school of",
+                        "faculty",
+                        "college",
+                        "research center",
+                        "inc.",
+                        "corp.",
+                        "ltd.",
+                    ]
+                )
+                if not is_affiliation and len(text) < 300:
+                    # Split on commas, semicolons, and 'and' to get individual names
+                    raw_names = _re.split(r"[,;]\s*|\band\b", text)
+                    for name in raw_names:
+                        name = name.strip()
+                        # Filter: valid author names are 2-60 chars, contain letters
+                        if (
+                            name
+                            and 2 <= len(name) <= 60
+                            and _re.search(r"[a-zA-Z]", name)
+                            and not _re.match(r"^[\d∗†‡§¶\*]+$", name)
+                        ):
+                            authors.append(name)
+                continue
+
+            # Collect abstract text
+            if collecting_abstract:
+                if label == "section_header":
+                    # Reached the next section, stop collecting
+                    collecting_abstract = False
+                    continue
+                abstract += (" " if abstract else "") + text
+                continue
+
+            # If we haven't found the abstract yet, check for it
+            if label == "section_header" and text.lower().strip().startswith("abstract"):
+                collecting_abstract = True
+
+        # Fallback: if no title found from labels, use the first text line
+        if not title and doc.texts:
+            title = doc.texts[0].text.strip()
+
+        # Deduplicate authors while preserving order
+        seen = set()
+        unique_authors = []
+        for a in authors:
+            if a.lower() not in seen:
+                seen.add(a.lower())
+                unique_authors.append(a)
+
+        logger.info(
+            f"Extracted metadata — title: '{title[:60]}...', "
+            f"authors: {len(unique_authors)}, abstract: {len(abstract)} chars"
+        )
+
+        return {
+            "title": title,
+            "authors": unique_authors,
+            "abstract": abstract[:2000],  # Cap abstract length
+        }

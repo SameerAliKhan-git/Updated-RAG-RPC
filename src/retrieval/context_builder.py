@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Tuple
 
 from src.retrieval.hybrid_search import RetrievedChunk
 
@@ -26,13 +25,16 @@ class CitationMeta:
     citation_id: int
     chunk_id: str
     paper_title: str
-    authors: List[str]
+    authors: list[str]
     arxiv_id: str
     arxiv_url: str
     pdf_url: str
     section: str
     chunk_type: str
     snippet: str  # First ~200 chars of the chunk text
+    score: float = 0.0
+    published_date: str = ""
+    categories: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -40,12 +42,12 @@ class CitationContext:
     """The assembled context string + citation metadata list."""
 
     context_str: str
-    citations: List[CitationMeta]
-    chunk_ids_in_context: List[str] = field(default_factory=list)
+    citations: list[CitationMeta]
+    chunk_ids_in_context: list[str] = field(default_factory=list)
 
 
 def build_citation_context(
-    chunks: List[RetrievedChunk],
+    chunks: list[RetrievedChunk],
     max_chunks: int = 8,
     snippet_length: int = 200,
 ) -> CitationContext:
@@ -113,15 +115,16 @@ def build_citation_context(
                 section=section,
                 chunk_type=chunk_type,
                 snippet=snippet,
+                score=getattr(chunk, "score", 0.0),
+                published_date=getattr(chunk, "published_date", ""),
+                categories=getattr(chunk, "categories", []),
             )
         )
         chunk_ids.append(chunk.chunk_id)
 
     context_str = "\n".join(context_parts)
 
-    logger.info(
-        f"Built citation context: {len(selected)} sources from {len(chunks)} candidates"
-    )
+    logger.info(f"Built citation context: {len(selected)} sources from {len(chunks)} candidates")
 
     return CitationContext(
         context_str=context_str,

@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
-import pytest
-
 from src.ingestion.chunker import StructureAwareChunker
 from src.ingestion.pdf_parser import ParsedDocument, ParsedElement, ParsedSection
 
 
 def test_chunker_respects_sentence_boundaries():
     """Verify chunker splits text by sentence boundary and does not exceed chunk_size."""
-    chunker = StructureAwareTracker = StructureAwareChunker()
+    chunker = StructureAwareChunker()
     # Configure target chunk_size of 20 words, overlap of 5 words
     chunker.settings.chunking.chunk_size = 20
     chunker.settings.chunking.overlap_size = 5

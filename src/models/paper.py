@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -35,11 +35,11 @@ class Paper(Base):
     # Relationships
     chunks = relationship("Chunk", back_populates="paper", cascade="all, delete-orphan")
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -61,7 +61,7 @@ class Chunk(Base):
     # Relationships
     paper = relationship("Paper", back_populates="chunks")
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
 
 class Feedback(Base):
@@ -74,4 +74,32 @@ class Feedback(Base):
     rating = Column(String, nullable=False)  # up or down
     correction = Column(Text, nullable=True)
     trace_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+
+class MemoryNode(Base):
+    """Model representing a node in the user profile memory graph."""
+
+    __tablename__ = "memory_nodes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(String, nullable=False, index=True)
+    label = Column(String, nullable=False)  # e.g., "User", "Topic", "Preference"
+    properties = Column(JSON, nullable=False)  # e.g., {"topic": "Pretraining Poisoning", "score": 0.9}
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+
+class MemoryEdge(Base):
+    """Model representing a directed relationship in the user profile memory graph."""
+
+    __tablename__ = "memory_edges"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_id = Column(
+        UUID(as_uuid=True), ForeignKey("memory_nodes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_id = Column(
+        UUID(as_uuid=True), ForeignKey("memory_nodes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    relation = Column(String, nullable=False)  # e.g., "INTERESTED_IN", "PREFERS"
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)

@@ -25,8 +25,8 @@ async def test_llm_adapter_routing(mock_call):
 
 def test_parse_json_response():
     """Verify JSON block parsing logic handles markdown fences and extracts valid dicts."""
-    raw1 = "```json\n{\"query_type\": \"casual\"}\n```"
-    raw2 = "Some text before {\"query_type\": \"simple\"} some text after"
+    raw1 = '```json\n{"query_type": "casual"}\n```'
+    raw2 = 'Some text before {"query_type": "simple"} some text after'
 
     res1 = parse_json_response(raw1)
     res2 = parse_json_response(raw2)
