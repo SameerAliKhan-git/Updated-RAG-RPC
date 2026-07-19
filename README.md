@@ -18,9 +18,10 @@ It integrates state-of-the-art layout-aware document parsing, asymmetric vector 
 6. [Running the Application](#running-the-application)
 7. [Developer Workflow & Makefile](#developer-workflow--makefile)
 8. [Automated Testing & CI Gates](#automated-testing--ci-gates)
-9. [API Endpoint Reference](#api-endpoint-reference)
-10. [Observability & Evaluation](#observability--evaluation)
-11. [License](#license)
+9. [Claude Code Bot](#claude-code-bot)
+10. [API Endpoint Reference](#api-endpoint-reference)
+11. [Observability & Evaluation](#observability--evaluation)
+12. [License](#license)
 
 ---
 
@@ -373,6 +374,24 @@ To run all checks:
 ```bash
 uv run pytest tests/ -v
 ```
+
+---
+
+## Claude Code Bot
+
+The repository now includes a dedicated GitHub Actions workflow at:
+
+* `.github/workflows/claude-code.yml`
+
+This enables the **Claude Code Bot** for issue comments, PR review comments, issue assignment/labeling, and PR reviews.
+
+### Required Secret
+
+Set the following repository secret before using the bot:
+
+* `ANTHROPIC_API_KEY`
+
+By default, users can trigger the bot in supported events with `@claude`.
 
 ---
 
