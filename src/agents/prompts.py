@@ -191,3 +191,31 @@ to answer your question: "{query}"
 - Try asking about a related topic that may be covered
 
 _This response is honest about the gap rather than guessing — grounded-but-uncertain beats confident-but-fabricated._"""
+
+
+# ─── Concept Extraction (nightly graph builder) ────────────────────
+
+CONCEPT_EXTRACTION_PROMPT = """You are a research concept extractor. From the paper metadata below, extract the key concepts and their relations.
+
+Allowed entity types (use ONLY these): method, dataset, task, metric
+Allowed relations (use ONLY these): uses, improves_on, evaluated_on, compares_to
+
+Rules:
+- Maximum 8 entities. Prefer specific names ("LoRA", "ImageNet") over generic ones ("neural network").
+- Every relation must reference entities from your own entity list.
+- Respond with ONLY valid JSON.
+
+Example 1:
+Input: Title: "LoRA: Low-Rank Adaptation of Large Language Models" — Abstract: We propose Low-Rank Adaptation, which freezes pretrained weights and injects trainable rank decomposition matrices, reducing trainable parameters for GPT-3 fine-tuning...
+Output: {{"entities": [{{"name": "LoRA", "type": "method"}}, {{"name": "GPT-3", "type": "method"}}, {{"name": "fine-tuning", "type": "task"}}], "relations": [{{"source": "LoRA", "target": "GPT-3", "relation": "uses"}}, {{"source": "LoRA", "target": "fine-tuning", "relation": "evaluated_on"}}]}}
+
+Example 2:
+Input: Title: "Attention Is All You Need" — Abstract: We propose the Transformer, based solely on attention mechanisms. Experiments on WMT 2014 English-to-German translation achieve 28.4 BLEU...
+Output: {{"entities": [{{"name": "Transformer", "type": "method"}}, {{"name": "attention mechanism", "type": "method"}}, {{"name": "WMT 2014", "type": "dataset"}}, {{"name": "machine translation", "type": "task"}}, {{"name": "BLEU", "type": "metric"}}], "relations": [{{"source": "Transformer", "target": "attention mechanism", "relation": "uses"}}, {{"source": "Transformer", "target": "WMT 2014", "relation": "evaluated_on"}}, {{"source": "Transformer", "target": "BLEU", "relation": "evaluated_on"}}]}}
+
+Input:
+Title: "{title}"
+Abstract: {abstract}
+Sections: {sections}
+
+Output:"""

@@ -67,6 +67,7 @@ class AgentState(TypedDict, total=False):
     all_retrieved_chunks: list[Any]  # List[RetrievedChunk]
     relevant_chunks: list[Any]
     reranked_chunks: list[Any]
+    retrieved_arxiv_ids: list[str]
 
     # Context
     context_str: str
@@ -94,6 +95,10 @@ class AgentState(TypedDict, total=False):
     # Optional live-event callback (set for streaming invocations, not serialized)
     emit: Any
 
+    # Per-request opt-in for the LLM faithfulness check + its structured result
+    deep_verify: bool
+    verification: dict[str, Any] | None
+
 
 # ─── Node Implementations ─────────────────────────────────────────
 
@@ -107,17 +112,28 @@ async def intake_and_route(state: AgentState) -> AgentState:
     history = state.get("conversation_history", [])
     history_str = json.dumps(history[-3:]) if history else "[]"
 
-    prompt = ROUTER_PROMPT.format(query=query, history=history_str)
-    response = await call_fast_llm(
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,
-        max_tokens=256,
-    )
+    # Fast path: obvious queries skip the LLM router entirely (saves 15-20s)
+    from src.agents.heuristics import heuristic_route
+    from src.middleware.metrics import ROUTER_DECISIONS
 
-    parsed = parse_json_response(response)
-    query_type = parsed.get("query_type", "simple")
-    if query_type not in ("casual", "simple", "complex", "followup"):
-        query_type = "simple"
+    heuristic_type = heuristic_route(query, has_history=bool(history))
+    if heuristic_type is not None:
+        _emit(state, f"router: heuristic → {heuristic_type}")
+        ROUTER_DECISIONS.labels(method="heuristic", route=heuristic_type).inc()
+        parsed: dict[str, Any] = {}
+        query_type = heuristic_type
+    else:
+        prompt = ROUTER_PROMPT.format(query=query, history=history_str)
+        response = await call_fast_llm(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=256,
+        )
+        parsed = parse_json_response(response)
+        query_type = parsed.get("query_type", "simple")
+        if query_type not in ("casual", "simple", "complex", "followup"):
+            query_type = "simple"
+        ROUTER_DECISIONS.labels(method="llm", route=query_type).inc()
 
     # Merge LLM-extracted filters with request-level filters — the caller's
     # explicit filters (e.g. an attached PDF's arxiv_id) always win.
@@ -181,19 +197,47 @@ async def retrieve(state: AgentState) -> AgentState:
     # Use current_query if it's a rewrite, otherwise sub_questions
     queries = sub_questions if state.get("retry_count", 0) == 0 else [current_query]
 
+    # Concept-graph augmentation: "evolution of X" / "which papers use X" style
+    # queries resolve the concept to its papers and scope retrieval to them.
+    filters = dict(state.get("filters") or {})
+    if toolkit and getattr(toolkit, "db_session", None) and not filters.get("arxiv_ids"):
+        from src.agents.heuristics import graph_concept
+        from src.agents.tools import ConceptGraphTools
+
+        concept = graph_concept(state.get("current_query", state["query"]))
+        if concept:
+            try:
+                graph_ids = ConceptGraphTools(toolkit.db_session).papers_for_concept(concept)
+                if graph_ids:
+                    filters["arxiv_ids"] = graph_ids
+                    _emit(state, f"concept graph: '{concept}' → scoping to {len(graph_ids)} papers")
+                else:
+                    _emit(state, f"concept graph: '{concept}' not in graph — using normal retrieval")
+            except Exception as e:
+                logger.warning(f"Concept graph lookup failed: {e}")
+
     _emit(state, f"hybrid search (BM25 + vectors) for {len(queries)} queries...")
 
     all_chunks = []
     for q in queries:
         if toolkit:
-            chunks = await toolkit.hybrid_search(q, top_k=15, filters=state.get("filters", {}))
+            chunks = await toolkit.hybrid_search(q, top_k=15, filters=filters)
         else:
             chunks = []
         all_chunks.extend(chunks)
 
     _emit(state, f"{len(all_chunks)} candidates found")
 
-    return {**state, "all_retrieved_chunks": all_chunks}
+    # Ordered, first-seen-deduped paper ids — consumed by retrieval metrics (hit@k/MRR)
+    seen: set[str] = set()
+    retrieved_ids = []
+    for c in all_chunks:
+        aid = getattr(c, "arxiv_id", "")
+        if aid and aid not in seen:
+            seen.add(aid)
+            retrieved_ids.append(aid)
+
+    return {**state, "all_retrieved_chunks": all_chunks, "retrieved_arxiv_ids": retrieved_ids}
 
 
 @trace_node("grade")
@@ -474,6 +518,7 @@ async def build_context(state: AgentState) -> AgentState:
                 "score": cm.score,
                 "published_date": cm.published_date,
                 "categories": cm.categories,
+                "page": cm.page,
             }
         )
 
@@ -503,6 +548,15 @@ async def generate(state: AgentState) -> AgentState:
     else:
         _emit(state, "generating answer with citations...")
         feedback_block = ""
+
+    # Contradiction surfacing: when context spans multiple papers, instruct the
+    # model to state disagreements explicitly instead of papering over them.
+    distinct_papers = {cm.get("arxiv_id") for cm in state.get("citation_meta", []) if cm.get("arxiv_id")}
+    if len(distinct_papers) >= 2:
+        feedback_block += (
+            "\nNote: the sources come from multiple papers. If they disagree on any claim, "
+            "state the disagreement explicitly and cite both sources."
+        )
 
     system_prompt = GENERATOR_SYSTEM_PROMPT
     user_content = GENERATOR_USER_PROMPT.format(context=context, query=query, feedback_block=feedback_block)
@@ -562,10 +616,10 @@ async def verify_citations(state: AgentState) -> AgentState:
         cleaned_answer = cleaned_answer.replace(f"[{inv}]", "")
         logger.warning(f"Stripped invented citation [{inv}] from answer")
 
-    # Step 2: LLM-based faithfulness check
+    # Step 2: LLM-based faithfulness check — globally enabled or opted-in per request
     from src.config import get_settings
 
-    enable_llm_verify = get_settings().enable_llm_verification
+    enable_llm_verify = get_settings().enable_llm_verification or state.get("deep_verify", False)
 
     # Always initialize feedback
     generation_feedback = ""
@@ -579,8 +633,10 @@ async def verify_citations(state: AgentState) -> AgentState:
             "answer_markdown": cleaned_answer,
             "grounding_note": grounding_note,
             "generation_feedback": "",
+            "verification": None,
         }
 
+    verification: dict[str, Any] | None = None
     try:
         prompt = VERIFIER_PROMPT.format(answer=cleaned_answer, context=context)
         response = await call_reasoning_llm(
@@ -591,6 +647,11 @@ async def verify_citations(state: AgentState) -> AgentState:
         parsed = parse_json_response(response)
 
         grounding_note = parsed.get("grounding_note", f"{len(cited_nums - invalid_nums)} citations used")
+        verification = {
+            "verified_claims": parsed.get("verified_claims", 0),
+            "total_claims": parsed.get("total_claims", 0),
+            "issues": parsed.get("issues", []),
+        }
 
         # Process issues — strip or hedge problematic claims
         issues = parsed.get("issues", [])
@@ -636,6 +697,7 @@ async def verify_citations(state: AgentState) -> AgentState:
         "grounding_note": grounding_note,
         "generation_retry_count": retry_num,
         "generation_feedback": generation_feedback,
+        "verification": verification,
     }
 
 
@@ -667,6 +729,7 @@ async def finalize(state: AgentState) -> AgentState:
                     "score": cm.get("score", 0.0),
                     "published_date": cm.get("published_date", ""),
                     "categories": cm.get("categories", []),
+                    "page": cm.get("page"),
                 }
             )
 
@@ -1009,9 +1072,12 @@ def _build_initial_state(
     conversation_history: list[dict[str, str]] | None,
     filters: dict[str, Any] | None,
     emit=None,
+    deep_verify: bool = False,
 ) -> AgentState:
     """Assemble the initial graph state shared by streaming and non-streaming entry points."""
     return {
+        "deep_verify": deep_verify,
+        "verification": None,
         "query": query,
         "session_id": session_id or str(uuid.uuid4()),
         "conversation_history": conversation_history or [],
@@ -1020,6 +1086,7 @@ def _build_initial_state(
         "all_retrieved_chunks": [],
         "relevant_chunks": [],
         "reranked_chunks": [],
+        "retrieved_arxiv_ids": [],
         "context_str": "",
         "citation_meta": [],
         "chunk_ids_in_context": [],
@@ -1045,6 +1112,9 @@ def _result_payload(result: dict[str, Any]) -> dict[str, Any]:
         "grounding_note": result.get("grounding_note", ""),
         "trace_events": result.get("trace_events", []),
         "query_type": result.get("query_type", ""),
+        "verification": result.get("verification"),
+        "retrieved_arxiv_ids": result.get("retrieved_arxiv_ids", []),
+        "chunk_ids_in_context": result.get("chunk_ids_in_context", []),
     }
 
 
@@ -1054,6 +1124,7 @@ async def ask_corpus(
     session_id: str | None = None,
     conversation_history: list[dict[str, str]] | None = None,
     filters: dict[str, Any] | None = None,
+    deep_verify: bool = False,
 ) -> dict[str, Any]:
     """Run the full agentic RAG pipeline for a query.
 
@@ -1067,7 +1138,9 @@ async def ask_corpus(
     """
     graph = get_agentic_graph()
 
-    initial_state = _build_initial_state(query, toolkit, session_id, conversation_history, filters)
+    initial_state = _build_initial_state(
+        query, toolkit, session_id, conversation_history, filters, deep_verify=deep_verify
+    )
 
     try:
         result = await graph.ainvoke(initial_state)
@@ -1090,6 +1163,7 @@ async def ask_corpus_streaming(
     session_id: str | None = None,
     conversation_history: list[dict[str, str]] | None = None,
     filters: dict[str, Any] | None = None,
+    deep_verify: bool = False,
 ):
     """Run the agentic pipeline, yielding live events as the graph executes.
 
@@ -1106,7 +1180,7 @@ async def ask_corpus_streaming(
     _SENTINEL = "__graph_complete__"
 
     initial_state = _build_initial_state(
-        query, toolkit, session_id, conversation_history, filters, emit=queue.put_nowait
+        query, toolkit, session_id, conversation_history, filters, emit=queue.put_nowait, deep_verify=deep_verify
     )
 
     async def _run() -> None:

@@ -21,6 +21,7 @@ class IngestedChunk:
         section_title: str,
         chunk_type: str,  # "body", "table", "figure-caption", "equation"
         text: str,
+        page_number: int | None = None,
     ):
         self.chunk_id = chunk_id
         self.paper_id = paper_id
@@ -28,6 +29,7 @@ class IngestedChunk:
         self.section_title = section_title
         self.chunk_type = chunk_type
         self.text = text
+        self.page_number = page_number
 
 
 class StructureAwareChunker:
@@ -67,6 +69,7 @@ class StructureAwareChunker:
                     section_title=f"Metadata - {chunk_type.capitalize()}",
                     chunk_type=chunk_type,
                     text=chunk_text,
+                    page_number=el.page_number,
                 )
             )
 
@@ -115,6 +118,7 @@ class StructureAwareChunker:
                         section_title=section.title,
                         chunk_type="body",
                         text=chunk_text,
+                        page_number=section.page_number,
                     )
                 )
                 chunk_idx += 1
@@ -148,6 +152,7 @@ class StructureAwareChunker:
                     section_title=section.title,
                     chunk_type="body",
                     text=chunk_text,
+                    page_number=section.page_number,
                 )
             )
 

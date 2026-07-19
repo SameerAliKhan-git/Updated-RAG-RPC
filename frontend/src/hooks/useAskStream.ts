@@ -36,6 +36,8 @@ export function useAskStream() {
       sessionId: string | null,
       onDone?: (result: AskResult) => void,
       filters?: Record<string, unknown> | null,
+      verify?: boolean,
+      collectionId?: string | null,
     ) => {
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -46,7 +48,13 @@ export function useAskStream() {
         const res = await fetch(`${API_BASE}/stream`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query, session_id: sessionId, filters: filters ?? null }),
+          body: JSON.stringify({
+            query,
+            session_id: sessionId,
+            filters: filters ?? null,
+            verify: verify ?? false,
+            collection_id: collectionId ?? null,
+          }),
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {

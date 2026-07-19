@@ -238,6 +238,118 @@ async def sample_traces_and_evaluate(sample_rate: float = 0.05) -> dict[str, Any
     return scores
 
 
+def compute_retrieval_metrics(samples: list[dict[str, Any]]) -> dict[str, float]:
+    """hit@5 / hit@10 / MRR over questions that declare expected_arxiv_ids."""
+    scored = [s for s in samples if s.get("expected_arxiv_ids")]
+    if not scored:
+        return {}
+
+    hits5 = hits10 = 0
+    reciprocal_ranks: list[float] = []
+    for s in scored:
+        expected = set(s["expected_arxiv_ids"])
+        retrieved = s.get("retrieved_arxiv_ids", [])
+        if any(a in expected for a in retrieved[:5]):
+            hits5 += 1
+        if any(a in expected for a in retrieved[:10]):
+            hits10 += 1
+        rank = next((i + 1 for i, a in enumerate(retrieved) if a in expected), None)
+        reciprocal_ranks.append(1.0 / rank if rank else 0.0)
+
+    n = len(scored)
+    return {
+        "retrieval_hit_at_5": round(hits5 / n, 4),
+        "retrieval_hit_at_10": round(hits10 / n, 4),
+        "retrieval_mrr": round(sum(reciprocal_ranks) / n, 4),
+    }
+
+
+async def evaluate_golden_set(limit: int = 10) -> dict[str, Any]:
+    """Run the REAL pipeline over the golden question set and RAGAS-score the answers.
+
+    Unlike trace sampling, this exercises retrieval + generation end-to-end, so the
+    scores reflect what a user actually gets. Results are appended to the Redis
+    history list `corpus:eval:history` for trend tracking.
+    """
+    import json
+    import time as _time
+    from pathlib import Path
+
+    settings = get_settings()
+
+    golden_path = Path("data/golden_eval.jsonl")
+    if not golden_path.exists():
+        raise FileNotFoundError(f"Golden set not found at {golden_path}")
+
+    questions = [json.loads(line) for line in golden_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    questions = questions[: max(1, limit)]
+    logger.info(f"Golden eval: running the full pipeline on {len(questions)} questions...")
+
+    from src.agents.rag_graph import ask_corpus
+    from src.agents.tools import AgentToolkit
+    from src.db.opensearch import create_opensearch_client
+    from src.db.postgres import create_engine_and_session
+    from src.retrieval.hybrid_search import HybridSearchService
+    from src.retrieval.reranker import create_reranker
+
+    engine, session_factory = create_engine_and_session(settings.postgres.database_url)
+    os_client = create_opensearch_client(settings.opensearch.host)
+    search_service = HybridSearchService(os_client)
+    reranker = create_reranker()
+
+    samples: list[dict[str, Any]] = []
+    try:
+        with session_factory() as session:
+            toolkit = AgentToolkit(
+                search_service=search_service,
+                reranker=reranker,
+                db_session=session,
+                redis_client=None,  # no session memory needed for eval runs
+            )
+            for q in questions:
+                try:
+                    result = await ask_corpus(query=q["query"], toolkit=toolkit)
+                    contexts = [c.get("snippet", "") for c in result.get("citations", [])] or [""]
+                    samples.append(
+                        {
+                            "query": q["query"],
+                            "contexts": contexts,
+                            "answer": result.get("answer_markdown", ""),
+                            "retrieved_arxiv_ids": result.get("retrieved_arxiv_ids", []),
+                            "expected_arxiv_ids": q.get("expected_arxiv_ids") or [],
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Golden eval question failed ({q['id']}): {e}")
+    finally:
+        await search_service.close()
+        await reranker.close()
+        os_client.close()
+        engine.dispose()
+
+    if not samples:
+        raise RuntimeError("Golden eval produced no samples — pipeline errors on every question.")
+
+    scores = run_ragas_evaluation(samples)
+    scores["dataset"] = "golden_v1"
+    scores["sample_count"] = len(samples)
+    scores.update(compute_retrieval_metrics(samples))
+
+    # Append to trend history
+    try:
+        import redis.asyncio as aioredis
+
+        redis = aioredis.from_url(settings.redis.url)
+        entry = json.dumps({"timestamp": _time.time(), **scores})
+        await redis.lpush("corpus:eval:history", entry)
+        await redis.ltrim("corpus:eval:history", 0, 59)
+        await redis.aclose()
+    except Exception as e:
+        logger.warning(f"Could not persist eval history: {e}")
+
+    return scores
+
+
 if __name__ == "__main__":
     import asyncio
 

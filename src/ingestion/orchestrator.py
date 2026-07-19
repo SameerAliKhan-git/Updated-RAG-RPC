@@ -165,6 +165,7 @@ class IngestionOrchestrator:
                 section_title=chunk.section_title,
                 chunk_type=chunk.chunk_type,
                 text=chunk.text,
+                page_number=chunk.page_number,
             )
             self.db_session.add(db_chunk)
 
@@ -176,6 +177,7 @@ class IngestionOrchestrator:
                 "section_title": chunk.section_title,
                 "chunk_type": chunk.chunk_type,
                 "text": chunk.text,
+                "page_number": chunk.page_number,
                 "embedding": embeddings[idx],
                 "title": title,
                 "authors": authors,
@@ -295,6 +297,7 @@ class IngestionOrchestrator:
                 section_title=chunk.section_title,
                 chunk_type=chunk.chunk_type,
                 text=chunk.text,
+                page_number=chunk.page_number,
             )
             self.db_session.add(db_chunk)
 
@@ -306,6 +309,7 @@ class IngestionOrchestrator:
                 "section_title": chunk.section_title,
                 "chunk_type": chunk.chunk_type,
                 "text": chunk.text,
+                "page_number": chunk.page_number,
                 "embedding": embeddings[idx],
                 "title": paper.title,
                 "authors": paper.authors,

@@ -36,7 +36,17 @@ export function SourcesPanel({
               </p>
               <p className="mt-0.5 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                 {c.section} · {c.arxiv_id}
+                {c.page ? ` · p. ${c.page}` : ""}
               </p>
+              {typeof c.score === "number" && c.score > 0 && (
+                <span
+                  className="mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  style={{ background: "var(--surface-2)", color: "var(--text-tertiary)" }}
+                  title="Cross-encoder relevance score"
+                >
+                  relevance {c.score.toFixed(2)}
+                </span>
+              )}
               {c.snippet && (
                 <p className="mt-2 line-clamp-3 text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                   “{c.snippet}”

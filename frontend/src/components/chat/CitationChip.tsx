@@ -57,6 +57,7 @@ export function CitationChip({
           {citation?.section && (
             <span className="mt-1 text-[10px] text-neutral-300 truncate">
               {citation.section}
+              {citation.page ? ` · p. ${citation.page}` : ""}
             </span>
           )}
         </span>

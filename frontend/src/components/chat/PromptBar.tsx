@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useSpeechInput } from "../../hooks/useSpeechInput";
 
 export interface Attachment {
   arxivId: string;
@@ -13,6 +14,10 @@ export function PromptBar({
   attachment,
   onAttach,
   onRemoveAttachment,
+  deepVerify = false,
+  onToggleDeepVerify,
+  visualOnly = false,
+  onToggleVisualOnly,
 }: {
   onSend: (query: string) => void;
   disabled: boolean;
@@ -20,12 +25,23 @@ export function PromptBar({
   attachment?: Attachment | null;
   onAttach?: (file: File) => void;
   onRemoveAttachment?: () => void;
+  deepVerify?: boolean;
+  onToggleDeepVerify?: () => void;
+  visualOnly?: boolean;
+  onToggleVisualOnly?: () => void;
 }) {
   const [value, setValue] = useState("");
   const [rippleKey, setRippleKey] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const multiline = value.includes("\n") || value.length > 90;
+
+  const onSpeech = useCallback((text: string) => {
+    setValue((v) => (v ? `${v} ${text}` : text));
+  }, []);
+  const speech = useSpeechInput(onSpeech);
+
+  const displayValue = speech.interim ? `${value}${value ? " " : ""}${speech.interim}` : value;
+  const multiline = displayValue.includes("\n") || displayValue.length > 90;
 
   const submit = () => {
     const query = value.trim();
@@ -109,7 +125,7 @@ export function PromptBar({
 
         <textarea
           ref={textareaRef}
-          value={value}
+          value={displayValue}
           rows={1}
           placeholder={attachment?.status === "ready" ? `Ask about ${attachment.title}…` : "Ask Corpus…"}
           disabled={disabled}
@@ -127,6 +143,51 @@ export function PromptBar({
           className="max-h-40 flex-1 resize-none bg-transparent py-1 text-[15px] outline-none"
           style={{ color: "var(--text)" }}
         />
+        {onToggleVisualOnly && (
+          <button
+            aria-label="Search only tables and figures"
+            title="Tables & figures only: restrict retrieval to tables and figure captions"
+            onClick={onToggleVisualOnly}
+            className="shrink-0 rounded-full px-2.5 py-2 text-[10px] font-semibold transition-all"
+            style={{
+              background: visualOnly ? "var(--accent-soft)" : "transparent",
+              color: visualOnly ? "var(--accent)" : "var(--text-tertiary)",
+            }}
+          >
+            <TableIcon />
+          </button>
+        )}
+
+        {speech.supported && (
+          <button
+            aria-label={speech.listening ? "Stop voice input" : "Start voice input"}
+            title="Voice input"
+            onClick={() => (speech.listening ? speech.stop() : speech.start())}
+            className="shrink-0 rounded-full p-2 transition-all"
+            style={{
+              background: speech.listening ? "var(--accent-soft)" : "transparent",
+              color: speech.listening ? "var(--g-red)" : "var(--text-tertiary)",
+            }}
+          >
+            <MicIcon />
+          </button>
+        )}
+
+        {onToggleDeepVerify && (
+          <button
+            aria-label="Toggle deep verification"
+            title="Deep verify: LLM checks every claim against its source (slower)"
+            onClick={onToggleDeepVerify}
+            className="shrink-0 rounded-full px-2.5 py-2 text-[10px] font-semibold transition-all"
+            style={{
+              background: deepVerify ? "var(--accent-soft)" : "transparent",
+              color: deepVerify ? "var(--accent)" : "var(--text-tertiary)",
+            }}
+          >
+            <ShieldIcon filled={deepVerify} />
+          </button>
+        )}
+
         <button
           aria-label="Send"
           onClick={submit}
@@ -148,7 +209,9 @@ export function PromptBar({
         </button>
       </div>
       <p className="mx-auto mt-2 max-w-3xl text-center text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-        Corpus answers only from indexed papers and cites every claim.
+        {deepVerify
+          ? "Deep verify on — every claim will be checked against its source (slower)."
+          : "Corpus answers only from indexed papers and cites every claim."}
       </p>
     </div>
   );
@@ -175,6 +238,46 @@ function XIcon() {
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="3" y1="15" x2="21" y2="15" />
+      <line x1="12" y1="3" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function ShieldIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      {filled && <polyline points="9 12 11 14 15 10" stroke="var(--accent-soft)" fill="none" />}
     </svg>
   );
 }

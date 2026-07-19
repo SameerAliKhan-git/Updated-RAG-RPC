@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
+import { EvalTrendChart } from "./EvalTrendChart";
 
 export function SystemView() {
   const queryClient = useQueryClient();
 
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, refetchInterval: 15_000 });
   const evalStatus = useQuery({ queryKey: ["eval"], queryFn: api.evalStatus, refetchInterval: 10_000 });
+  const evalHistory = useQuery({ queryKey: ["evalHistory"], queryFn: () => api.evalHistory(30), refetchInterval: 60_000 });
 
   const runEval = useMutation({
     mutationFn: api.runEval,
@@ -102,6 +104,16 @@ export function SystemView() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Quality trend */}
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+            Answer Quality Trend
+          </h2>
+          <div className="mt-3 rounded-3xl p-5" style={{ background: "var(--surface)" }}>
+            <EvalTrendChart history={evalHistory.data?.history ?? []} />
           </div>
         </section>
 

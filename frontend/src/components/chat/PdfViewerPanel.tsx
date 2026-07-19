@@ -1,9 +1,19 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Suspense, lazy } from "react";
 import { API_BASE } from "../../api/client";
+
+const PdfJsViewer = lazy(() => import("./PdfJsViewer"));
 
 export interface PdfTarget {
   arxivId: string;
   title: string;
+  page?: number | null;
+  snippet?: string | null;
+}
+
+function pdfSrc(target: PdfTarget): string {
+  const base = `${API_BASE}/papers/${encodeURIComponent(target.arxivId)}/pdf`;
+  return target.page ? `${base}#page=${target.page}` : base;
 }
 
 /** Gemini-style responsive PDF viewer — splits side-by-side on desktop, slides over on mobile. */
@@ -66,13 +76,18 @@ export function PdfViewerPanel({
                 </span>
                 <p className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text)" }}>
                   {target.title}
+                  {target.page ? (
+                    <span className="ml-2 text-xs font-normal" style={{ color: "var(--text-tertiary)" }}>
+                      p. {target.page}
+                    </span>
+                  ) : null}
                 </p>
 
                 {/* Print button */}
                 <button
                   aria-label="Print PDF"
                   onClick={() => {
-                    window.open(`${API_BASE}/papers/${encodeURIComponent(target.arxivId)}/pdf`, "_blank");
+                    window.open(pdfSrc(target), "_blank");
                   }}
                   className="rounded-full p-2 transition-colors hover:opacity-75 cursor-pointer"
                   style={{ color: "var(--text-secondary)" }}
@@ -90,13 +105,19 @@ export function PdfViewerPanel({
                 </button>
               </div>
 
-              {/* Iframe */}
-              <iframe
-                title={target.title}
-                src={`${API_BASE}/papers/${encodeURIComponent(target.arxivId)}/pdf`}
-                className="min-h-0 flex-1 border-0 w-full h-full"
-                style={{ background: "var(--surface-2)" }}
-              />
+              {/* PDF.js renderer with passage highlighting */}
+              <Suspense
+                fallback={
+                  <p className="gradient-shimmer p-6 text-center text-sm font-medium">Loading viewer…</p>
+                }
+              >
+                <PdfJsViewer
+                  key={`${target.arxivId}:${target.page ?? 1}`}
+                  url={`${API_BASE}/papers/${encodeURIComponent(target.arxivId)}/pdf`}
+                  initialPage={target.page ?? 1}
+                  snippet={target.snippet}
+                />
+              </Suspense>
             </div>
           </motion.div>
         </>

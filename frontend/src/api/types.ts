@@ -7,6 +7,21 @@ export interface Citation {
   pdf_url: string;
   section: string;
   snippet: string;
+  page?: number | null;
+  score?: number;
+}
+
+export interface VerificationIssue {
+  claim: string;
+  citation: string;
+  issue: string;
+  action: "remove" | "hedge" | "keep";
+}
+
+export interface Verification {
+  verified_claims: number;
+  total_claims: number;
+  issues: VerificationIssue[];
 }
 
 export interface AskResult {
@@ -16,6 +31,7 @@ export interface AskResult {
   query_type: string;
   session_id: string;
   cached?: boolean;
+  verification?: Verification | null;
 }
 
 export type StreamEvent =
@@ -24,6 +40,8 @@ export type StreamEvent =
   | { type: "citation"; citation: Citation }
   | { type: "done"; result: AskResult }
   | { type: "error"; message: string };
+
+export type ReadingStatus = "unread" | "to_read" | "reading" | "done";
 
 export interface PaperSummary {
   arxiv_id: string;
@@ -34,6 +52,8 @@ export interface PaperSummary {
   categories: string[];
   pdf_processed: boolean;
   chunk_count: number;
+  reading_status: ReadingStatus;
+  notes: string | null;
 }
 
 export interface PaperListResponse {
@@ -68,10 +88,20 @@ export interface ChatMessage {
   groundingNote?: string;
   cached?: boolean;
   streaming?: boolean;
+  verification?: Verification | null;
 }
 
 export interface ChatSession {
   id: string;
   title: string;
   createdAt: number;
+}
+
+export interface EvalHistoryEntry {
+  timestamp: number;
+  faithfulness: number;
+  answer_relevancy: number;
+  method?: string;
+  dataset?: string;
+  sample_count?: number;
 }

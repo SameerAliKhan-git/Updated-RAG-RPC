@@ -54,6 +54,7 @@ OPENSEARCH_CHUNKS_MAPPING = {
             "categories": {"type": "keyword"},  # List of categories
             "published_date": {"type": "date"},
             "created_at": {"type": "date"},
+            "page_number": {"type": "integer"},  # 1-based PDF page for citation deep-links
         },
     },
 }

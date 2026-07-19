@@ -1,18 +1,66 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../api/client";
+import { collectionsApi } from "../../api/collections";
+import type { ReadingStatus } from "../../api/types";
 import { UploadModal } from "./UploadModal";
+
+const STATUS_CHIPS: { value: string; label: string }[] = [
+  { value: "", label: "All" },
+  { value: "to_read", label: "To read" },
+  { value: "reading", label: "Reading" },
+  { value: "done", label: "Done" },
+];
+
+const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
+  { value: "unread", label: "Unread" },
+  { value: "to_read", label: "To read" },
+  { value: "reading", label: "Reading" },
+  { value: "done", label: "Done" },
+];
 
 export function LibraryView() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [status, setStatus] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [zoteroBusy, setZoteroBusy] = useState(false);
+  const [zoteroMsg, setZoteroMsg] = useState("");
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["papers", page, search],
-    queryFn: () => api.listPapers(page, 24, search || undefined),
+    queryKey: ["papers", page, search, status],
+    queryFn: () => api.listPapers(page, 24, search || undefined, status || undefined),
   });
+
+  const collections = useQuery({ queryKey: ["collections"], queryFn: collectionsApi.list, staleTime: 15_000 });
+
+  const setPaperStatus = async (arxivId: string, readingStatus: string) => {
+    await api.patchPaper(arxivId, { reading_status: readingStatus });
+    void queryClient.invalidateQueries({ queryKey: ["papers"] });
+  };
+
+  const addToCollection = async (collectionId: string, arxivId: string) => {
+    await collectionsApi.addPaper(collectionId, arxivId);
+    void queryClient.invalidateQueries({ queryKey: ["collections"] });
+  };
+
+  const importZotero = async () => {
+    setZoteroBusy(true);
+    setZoteroMsg("");
+    try {
+      const res = await api.zoteroImport(true);
+      setZoteroMsg(
+        `Zotero: ${res.queued.length} queued for ingestion, ${res.already_present.length} already here, ${res.skipped.length} skipped.`,
+      );
+    } catch (e) {
+      setZoteroMsg((e as Error).message.includes("502")
+        ? "Zotero import failed — is the Zotero desktop app running?"
+        : `Zotero import failed: ${(e as Error).message}`);
+    } finally {
+      setZoteroBusy(false);
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6 md:px-8">
@@ -26,25 +74,62 @@ export function LibraryView() {
               {data ? `${data.total} papers indexed` : "Ingested research papers"}
             </p>
           </div>
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="rounded-full px-5 py-2.5 text-sm font-medium text-white transition-all hover:shadow-lg"
-            style={{ background: "var(--gradient-gemini-solid)" }}
-          >
-            Upload PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => void importZotero()}
+              disabled={zoteroBusy}
+              className="rounded-full px-4 py-2.5 text-sm font-medium transition-all disabled:opacity-50"
+              style={{ background: "var(--surface)", color: "var(--text-secondary)" }}
+              title="Import arXiv papers from your Zotero desktop library"
+            >
+              {zoteroBusy ? "Importing…" : "Import from Zotero"}
+            </button>
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="rounded-full px-5 py-2.5 text-sm font-medium text-white transition-all hover:shadow-lg"
+              style={{ background: "var(--gradient-gemini-solid)" }}
+            >
+              Upload PDF
+            </button>
+          </div>
         </div>
 
-        <input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Search title, abstract, author, category…"
-          className="mt-6 w-full max-w-xl rounded-full px-5 py-3 text-sm outline-none"
-          style={{ background: "var(--surface)", color: "var(--text)" }}
-        />
+        {zoteroMsg && (
+          <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}>
+            {zoteroMsg}
+          </p>
+        )}
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search title, abstract, author, category…"
+            className="w-full max-w-xl rounded-full px-5 py-3 text-sm outline-none"
+            style={{ background: "var(--surface)", color: "var(--text)" }}
+          />
+          <div className="flex gap-1.5">
+            {STATUS_CHIPS.map((chip) => (
+              <button
+                key={chip.value}
+                onClick={() => {
+                  setStatus(chip.value);
+                  setPage(1);
+                }}
+                className="rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors"
+                style={{
+                  background: status === chip.value ? "var(--accent-soft)" : "var(--surface)",
+                  color: status === chip.value ? "var(--accent)" : "var(--text-secondary)",
+                }}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {isLoading && <SkeletonGrid />}
         {error != null && (
@@ -57,11 +142,8 @@ export function LibraryView() {
           <>
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {data.papers.map((p) => (
-                <a
+                <div
                   key={p.arxiv_id}
-                  href={p.arxiv_id.startsWith("upload_") ? undefined : `https://arxiv.org/abs/${p.arxiv_id}`}
-                  target="_blank"
-                  rel="noreferrer"
                   className="flex flex-col rounded-3xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
                   style={{ background: "var(--surface)" }}
                 >
@@ -79,9 +161,15 @@ export function LibraryView() {
                       </span>
                     ))}
                   </div>
-                  <h3 className="mt-3 line-clamp-2 text-[15px] font-medium leading-snug" style={{ color: "var(--text)" }}>
-                    {p.title}
-                  </h3>
+                  <a
+                    href={p.arxiv_id.startsWith("upload_") ? undefined : `https://arxiv.org/abs/${p.arxiv_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <h3 className="mt-3 line-clamp-2 text-[15px] font-medium leading-snug hover:underline" style={{ color: "var(--text)" }}>
+                      {p.title}
+                    </h3>
+                  </a>
                   <p className="mt-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {p.authors.slice(0, 3).join(", ")}
                     {p.authors.length > 3 ? " et al." : ""}
@@ -95,7 +183,41 @@ export function LibraryView() {
                     <span>{p.chunk_count} chunks</span>
                     {p.pdf_processed && <span style={{ color: "var(--g-green)" }}>✓ indexed</span>}
                   </div>
-                </a>
+                  <div className="mt-3 flex items-center gap-2">
+                    <select
+                      value={p.reading_status}
+                      onChange={(e) => void setPaperStatus(p.arxiv_id, e.target.value)}
+                      className="rounded-full px-2.5 py-1 text-[11px] outline-none"
+                      style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}
+                      aria-label="Reading status"
+                    >
+                      {STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {(collections.data?.collections.length ?? 0) > 0 && (
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) void addToCollection(e.target.value, p.arxiv_id);
+                          e.target.value = "";
+                        }}
+                        className="rounded-full px-2.5 py-1 text-[11px] outline-none"
+                        style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}
+                        aria-label="Add to collection"
+                      >
+                        <option value="">+ Collection…</option>
+                        {collections.data?.collections.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
 

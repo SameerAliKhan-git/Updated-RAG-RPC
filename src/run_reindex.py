@@ -87,6 +87,7 @@ async def reindex() -> int:
                             "section_title": chunk.section_title,
                             "chunk_type": chunk.chunk_type,
                             "text": chunk.text,
+                            "page_number": chunk.page_number,
                             "embedding": embedding,
                             "title": paper.title,
                             "authors": paper.authors or [],

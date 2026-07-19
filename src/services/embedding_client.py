@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 from abc import ABC, abstractmethod
 
@@ -87,6 +88,63 @@ class LocalEmbeddingClient(EmbeddingClientInterface):
         return result[0]
 
 
+class OllamaEmbeddingClient(EmbeddingClientInterface):
+    """bge-m3 (quantized) served by host Ollama — ~5-10x faster than fp32 CPU,
+    and keeps ~2.2GB of model weights out of the Docker VM.
+
+    Vectors are L2-normalized client-side so the cosinesimil index behaves
+    identically to the sentence-transformers backend."""
+
+    def __init__(self):
+        import httpx
+
+        self.settings = get_settings()
+        self._client = httpx.AsyncClient(
+            base_url=self.settings.ollama.host,
+            timeout=30.0,
+        )
+
+    @staticmethod
+    def _normalize(vec: list[float]) -> list[float]:
+        norm = math.sqrt(sum(x * x for x in vec))
+        if norm == 0:
+            return vec
+        return [x / norm for x in vec]
+
+    async def _embed(self, texts: list[str]) -> list[list[float]]:
+        model = self.settings.embedding.ollama_model
+        results: list[list[float]] = []
+        batch_size = self.settings.embedding.batch_size
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            last_error: Exception | None = None
+            for _attempt in range(2):
+                try:
+                    resp = await self._client.post("/api/embed", json={"model": model, "input": batch})
+                    resp.raise_for_status()
+                    data = resp.json()
+                    results.extend(self._normalize(v) for v in data["embeddings"])
+                    last_error = None
+                    break
+                except Exception as e:
+                    last_error = e
+            if last_error is not None:
+                raise RuntimeError(f"Ollama embedding failed for model '{model}': {last_error}") from last_error
+        return results
+
+    async def embed_passages(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return await self._embed(texts)
+
+    async def embed_query(self, query: str) -> list[float]:
+        return (await self._embed([query]))[0]
+
+    async def close(self) -> None:
+        if not self._client.is_closed:
+            await self._client.aclose()
+
+
 def warm_embedding_model() -> None:
     """Eagerly load the model (call from app lifespan to avoid first-request latency)."""
     if get_settings().embedding.backend == "local":
@@ -96,7 +154,10 @@ def warm_embedding_model() -> None:
 def create_embedding_client() -> EmbeddingClientInterface:
     """Factory on EMBEDDING__BACKEND. 'jina' kept only as a rollback path."""
     settings = get_settings()
-    if settings.embedding.backend == "jina":
+    backend = settings.embedding.backend
+    if backend == "ollama":
+        return OllamaEmbeddingClient()
+    if backend == "jina":
         from src.services.jina_client import JinaEmbeddingsClient
 
         logger.warning("Using legacy Jina embedding backend (paid API).")

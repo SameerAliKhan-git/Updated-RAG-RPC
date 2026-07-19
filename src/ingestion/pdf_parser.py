@@ -16,20 +16,41 @@ logger = logging.getLogger(__name__)
 class ParsedSection:
     """Dataclass representing extracted document section."""
 
-    def __init__(self, title: str, text: str, level: int = 1):
+    def __init__(self, title: str, text: str, level: int = 1, page_number: int | None = None):
         self.title = title
         self.text = text
         self.level = level
+        self.page_number = page_number
 
 
 class ParsedElement:
     """Dataclass representing tables, figures, or equations."""
 
-    def __init__(self, element_id: str, content_type: str, caption: str, content: str):
+    def __init__(
+        self,
+        element_id: str,
+        content_type: str,
+        caption: str,
+        content: str,
+        page_number: int | None = None,
+    ):
         self.element_id = element_id
         self.content_type = content_type  # "table", "figure", "equation"
         self.caption = caption
         self.content = content
+        self.page_number = page_number
+
+
+def _item_page(item) -> int | None:
+    """Pull the 1-based page number from a Docling item's provenance, if present."""
+    try:
+        prov = getattr(item, "prov", None)
+        if prov:
+            page = getattr(prov[0], "page_no", None)
+            return int(page) if page else None
+    except Exception:  # noqa: BLE001 — provenance is best-effort
+        pass
+    return None
 
 
 class ParsedDocument:
@@ -113,6 +134,7 @@ class DoclingParserService:
         # Current section tracker
         curr_title = "Introduction"
         curr_text_lines: list[str] = []
+        curr_page: int | None = None
 
         # Rely on doc.texts to reconstruct chronological narrative text
         for text_item in doc.texts:
@@ -120,15 +142,20 @@ class DoclingParserService:
             if label in ("section_header", "title"):
                 # Save previous section
                 if curr_text_lines:
-                    sections.append(ParsedSection(title=curr_title, text="\n".join(curr_text_lines)))
+                    sections.append(
+                        ParsedSection(title=curr_title, text="\n".join(curr_text_lines), page_number=curr_page)
+                    )
                     curr_text_lines = []
                 curr_title = text_item.text.strip()
+                curr_page = _item_page(text_item)
             else:
+                if curr_page is None:
+                    curr_page = _item_page(text_item)
                 curr_text_lines.append(text_item.text.strip())
 
         # Save tail section
         if curr_text_lines:
-            sections.append(ParsedSection(title=curr_title, text="\n".join(curr_text_lines)))
+            sections.append(ParsedSection(title=curr_title, text="\n".join(curr_text_lines), page_number=curr_page))
 
         # Rely on tables to extract structured tables
         for tab_idx, table_item in enumerate(doc.tables):
@@ -179,6 +206,7 @@ class DoclingParserService:
                     content_type="table",
                     caption=caption,
                     content=table_markdown,
+                    page_number=_item_page(table_item),
                 )
             )
 
@@ -206,6 +234,7 @@ class DoclingParserService:
                         content_type="figure-caption",
                         caption=caption,
                         content=content,
+                        page_number=_item_page(fig_item),
                     )
                 )
         except Exception as fig_err:
@@ -220,6 +249,7 @@ class DoclingParserService:
                         content_type="equation",
                         caption="",
                         content=getattr(eq_item, "text", ""),
+                        page_number=_item_page(eq_item),
                     )
                 )
         except Exception as eq_err:

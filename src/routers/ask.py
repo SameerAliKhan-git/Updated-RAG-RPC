@@ -25,6 +25,7 @@ from src.schemas.ask import (
     AgenticResponse,
     AskRequest,
     Citation,
+    PaperUpdateRequest,
     PaperListResponse,
     PaperSummary,
     SearchRequest,
@@ -64,11 +65,12 @@ async def ask_agentic(
     toolkit, search_service, reranker = _build_toolkit(db_session, opensearch, redis)
     session_id = body.session_id or str(uuid.uuid4())
     conversation_history = await _load_history(redis, body.session_id, session_id)
+    filters = _resolve_filters(db_session, body)
 
     try:
-        # Semantic cache: only for fresh (non-follow-up) questions
+        # Semantic cache: only for fresh, unscoped questions
         cached, query_embedding = await _semantic_cache_lookup(
-            redis, search_service, query, conversation_history
+            redis, search_service, query, conversation_history, filters
         )
         if cached is not None:
             return AgenticResponse(**{**cached, "session_id": session_id, "cached": True})
@@ -78,7 +80,8 @@ async def ask_agentic(
             toolkit=toolkit,
             session_id=session_id,
             conversation_history=conversation_history,
-            filters=body.filters,
+            filters=filters,
+            deep_verify=body.verify,
         )
 
         response = AgenticResponse(
@@ -88,6 +91,7 @@ async def ask_agentic(
             query_type=result.get("query_type", ""),
             session_id=session_id,
             trace_events=result.get("trace_events", []),
+            verification=result.get("verification"),
         )
 
         await _semantic_cache_store(redis, query, query_embedding, result)
@@ -127,13 +131,14 @@ async def stream_ask(
         toolkit, search_service, reranker = _build_toolkit(db_session, opensearch, redis)
         session_id = body.session_id or str(uuid.uuid4())
         conversation_history = await _load_history(redis, body.session_id, session_id)
+        filters = _resolve_filters(db_session, body)
 
         yield _sse_event("trace", {"step": "starting agentic pipeline..."})
 
         try:
             # Semantic cache: replay a cached answer instantly for near-duplicate questions
             cached, query_embedding = await _semantic_cache_lookup(
-                redis, search_service, query, conversation_history
+                redis, search_service, query, conversation_history, filters
             )
             if cached is not None:
                 yield _sse_event("trace", {"step": "semantic cache hit — serving cached answer"})
@@ -149,7 +154,8 @@ async def stream_ask(
                 toolkit=toolkit,
                 session_id=session_id,
                 conversation_history=conversation_history,
-                filters=body.filters,
+                filters=filters,
+                deep_verify=body.verify,
             ):
                 etype = event.get("type")
                 if etype == "trace":
@@ -173,6 +179,7 @@ async def stream_ask(
                         "query_type": result.get("query_type", ""),
                         "session_id": session_id,
                         "cached": False,
+                        "verification": result.get("verification"),
                     },
                 )
                 await _semantic_cache_store(redis, query, query_embedding, result)
@@ -217,7 +224,7 @@ async def search(
         chunks = await service.search(
             query=body.query,
             top_k=body.top_k,
-            filter_arxiv_id=body.filter_arxiv_id,
+            filter_arxiv_ids=body.filter_arxiv_id,
             filter_chunk_type=body.filter_chunk_type,
             filter_categories=body.filter_categories,
             filter_authors=body.filter_authors,
@@ -256,9 +263,10 @@ async def list_papers(
     page: int = 1,
     per_page: int = 20,
     search: str | None = None,
+    status: str | None = None,
     db_session=Depends(get_db_session),
 ):
-    """List all ingested papers with pagination and optional text search."""
+    """List all ingested papers with pagination, text search, and reading-status filter."""
     from sqlalchemy import String as SqlString
     from sqlalchemy import cast, desc, func
 
@@ -273,6 +281,8 @@ async def list_papers(
             | cast(Paper.authors, SqlString).ilike(search_term)
             | cast(Paper.categories, SqlString).ilike(search_term)
         )
+    if status:
+        query_builder = query_builder.filter(Paper.reading_status == status)
 
     total = query_builder.count()
     offset = (page - 1) * per_page
@@ -292,6 +302,8 @@ async def list_papers(
                 categories=p.categories if p.categories else [],
                 pdf_processed=p.pdf_processed,
                 chunk_count=chunk_count,
+                reading_status=getattr(p, "reading_status", "unread") or "unread",
+                notes=getattr(p, "notes", None),
             )
         )
 
@@ -341,6 +353,35 @@ async def get_paper(
     }
 
 
+# ── PATCH /papers/{arxiv_id} — reading tracker ──────────────────
+
+
+@router.patch(
+    "/papers/{arxiv_id}",
+    summary="Update reading status / notes for a paper",
+)
+async def update_paper(
+    arxiv_id: str,
+    body: PaperUpdateRequest,
+    db_session=Depends(get_db_session),
+):
+    from src.models.paper import Paper
+
+    paper = db_session.query(Paper).filter(Paper.arxiv_id == arxiv_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail=f"Paper {arxiv_id} not found.")
+    if body.reading_status is not None:
+        paper.reading_status = body.reading_status
+    if body.notes is not None:
+        paper.notes = body.notes
+    db_session.commit()
+    return {
+        "arxiv_id": arxiv_id,
+        "reading_status": paper.reading_status,
+        "notes": paper.notes,
+    }
+
+
 # ── GET /papers/{arxiv_id}/pdf ──────────────────────────────────
 
 
@@ -352,10 +393,13 @@ async def get_paper_pdf(
     arxiv_id: str,
     db_session=Depends(get_db_session),
 ):
-    """Stream the locally cached PDF; fall back to redirecting to the arXiv copy."""
+    """Stream the locally cached PDF; on a cache miss, download it through the
+    backend and cache it. Never redirect — the PDF.js viewer fetches via JS and
+    arXiv blocks cross-origin fetches (CORS), so a redirect renders nothing."""
     from pathlib import Path
 
-    from fastapi.responses import FileResponse, RedirectResponse
+    import httpx
+    from fastapi.responses import FileResponse
 
     from src.config import get_settings
     from src.models.paper import Paper
@@ -364,19 +408,33 @@ async def get_paper_pdf(
     if ".." in safe_id or "\\" in safe_id:
         raise HTTPException(status_code=400, detail="Invalid paper id.")
 
-    pdf_path = Path(get_settings().arxiv.pdf_cache_dir) / f"{safe_id}.pdf"
-    if pdf_path.exists():
-        return FileResponse(
-            pdf_path,
-            media_type="application/pdf",
-            content_disposition_type="inline",
-            filename=f"{safe_id}.pdf",
-        )
+    cache_dir = Path(get_settings().arxiv.pdf_cache_dir)
+    pdf_path = cache_dir / f"{safe_id}.pdf"
 
-    paper = db_session.query(Paper).filter(Paper.arxiv_id == arxiv_id).first()
-    if paper and str(paper.pdf_url).startswith("http"):
-        return RedirectResponse(paper.pdf_url)
-    raise HTTPException(status_code=404, detail=f"No PDF available for {arxiv_id}.")
+    if not pdf_path.exists():
+        paper = db_session.query(Paper).filter(Paper.arxiv_id == arxiv_id).first()
+        url = str(paper.pdf_url) if paper else ""
+        if not url.startswith("http"):
+            raise HTTPException(status_code=404, detail=f"No PDF available for {arxiv_id}.")
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+            tmp_path = pdf_path.with_suffix(".part")
+            tmp_path.write_bytes(resp.content)
+            tmp_path.replace(pdf_path)  # atomic: never serve a half-written file
+            logger.info(f"Cached PDF for {arxiv_id} ({len(resp.content)} bytes)")
+        except Exception as e:
+            logger.error(f"PDF proxy download failed for {arxiv_id}: {e}")
+            raise HTTPException(status_code=502, detail=f"Could not fetch PDF for {arxiv_id}.") from e
+
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        content_disposition_type="inline",
+        filename=f"{safe_id}.pdf",
+    )
 
 
 # ── POST /papers/extract-metadata ────────────────────────────────
@@ -528,6 +586,33 @@ async def _load_history(redis, provided_session_id: str | None, session_id: str)
     return []
 
 
+def _resolve_filters(db_session, body: AskRequest) -> dict:
+    """Merge request filters with a collection's paper scope.
+
+    A collection resolves to its member arxiv_ids at request time so membership
+    changes take effect immediately. Explicit request filters win on conflict.
+    """
+    filters = dict(body.filters or {})
+    if body.collection_id:
+        try:
+            from src.models.paper import Collection, CollectionPaper, Paper
+
+            rows = (
+                db_session.query(Paper.arxiv_id)
+                .join(CollectionPaper, CollectionPaper.paper_id == Paper.id)
+                .join(Collection, Collection.id == CollectionPaper.collection_id)
+                .filter(Collection.id == body.collection_id)
+                .all()
+            )
+            ids = [r[0] for r in rows]
+            # Empty collection → scope to an impossible id so retrieval honestly
+            # finds nothing rather than silently searching the whole corpus.
+            filters.setdefault("arxiv_ids", ids or ["__empty_collection__"])
+        except Exception as e:
+            logger.warning(f"Collection resolution failed for {body.collection_id}: {e}")
+    return filters
+
+
 def _to_citation(c: dict) -> Citation:
     """Map a raw citation dict from the graph onto the API schema."""
     return Citation(
@@ -539,23 +624,28 @@ def _to_citation(c: dict) -> Citation:
         pdf_url=c.get("pdf_url", ""),
         section=c.get("section", ""),
         snippet=c.get("snippet", ""),
+        page=c.get("page"),
+        score=c.get("score", 0.0),
     )
 
 
 async def _semantic_cache_lookup(
-    redis, search_service, query: str, conversation_history: list
+    redis, search_service, query: str, conversation_history: list, filters: dict | None = None
 ) -> tuple[dict | None, list[float] | None]:
     """Check the semantic cache for a near-duplicate fresh question.
 
     Returns (cached_response, query_embedding). Follow-ups are context-dependent
-    and are never served from cache. The embedding is returned for reuse when
-    storing the eventual answer.
+    and never served from cache; filtered/scoped questions (collections, attached
+    PDFs) bypass the cache entirely — a cached answer from one scope must never
+    leak into another. The embedding is returned for reuse when storing.
     """
     from src.config import get_settings
     from src.services.redis_services import RedisServicesManager
 
     settings = get_settings()
     if not settings.semantic_cache_enabled or redis is None or conversation_history:
+        return None, None
+    if filters and any(v for v in filters.values()):
         return None, None
 
     try:

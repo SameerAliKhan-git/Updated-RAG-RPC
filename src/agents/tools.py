@@ -57,10 +57,12 @@ class AgentToolkit:
     ) -> list[RetrievedChunk]:
         """Tool: hybrid_search(query, filters) — BM25 + vector + RRF."""
         filters = filters or {}
+        # Accept both scalar arxiv_id (router/LLM output) and arxiv_ids list (collections)
+        arxiv_ids = filters.get("arxiv_ids") or ([filters["arxiv_id"]] if filters.get("arxiv_id") else None)
         return await self.search.search(
             query=query,
             top_k=top_k,
-            filter_arxiv_id=filters.get("arxiv_id"),
+            filter_arxiv_ids=arxiv_ids,
             filter_chunk_type=filters.get("chunk_type"),
             filter_categories=filters.get("categories"),
             filter_authors=filters.get("authors"),
@@ -209,8 +211,70 @@ class AgentToolkit:
             chunks = await self.search.search(
                 query=search_query,
                 top_k=5,
-                filter_arxiv_id=arxiv_id,
+                filter_arxiv_ids=[arxiv_id],
             )
             result[arxiv_id] = chunks
 
         return result
+
+
+class ConceptGraphTools:
+    """SQL-backed concept graph lookups (built nightly by the concept_graph_builder DAG)."""
+
+    def __init__(self, db_session):
+        self.db = db_session
+
+    def _resolve_concept(self, name: str):
+        from src.models.paper import ConceptNode
+
+        normalized = " ".join(name.lower().strip().split())
+        node = self.db.query(ConceptNode).filter(ConceptNode.canonical_name == normalized).first()
+        if node:
+            return node
+        return (
+            self.db.query(ConceptNode)
+            .filter(ConceptNode.canonical_name.ilike(f"{normalized}%"))
+            .first()
+        )
+
+    def papers_for_concept(self, name: str, limit: int = 20) -> list[str]:
+        """arxiv_ids of papers mentioning a concept — feeds scoped retrieval."""
+        from src.models.paper import ConceptMention
+
+        node = self._resolve_concept(name)
+        if not node:
+            return []
+        rows = (
+            self.db.query(ConceptMention.arxiv_id)
+            .filter(ConceptMention.concept_id == node.id)
+            .limit(limit)
+            .all()
+        )
+        return [r[0] for r in rows]
+
+    def get_concept_neighbors(self, name: str, limit: int = 25) -> list[dict[str, str]]:
+        """Directly related concepts with their relation types."""
+        from src.models.paper import ConceptEdge, ConceptNode
+
+        node = self._resolve_concept(name)
+        if not node:
+            return []
+        edges = (
+            self.db.query(ConceptEdge, ConceptNode)
+            .join(ConceptNode, ConceptNode.id == ConceptEdge.target_id)
+            .filter(ConceptEdge.source_id == node.id)
+            .limit(limit)
+            .all()
+        )
+        reverse = (
+            self.db.query(ConceptEdge, ConceptNode)
+            .join(ConceptNode, ConceptNode.id == ConceptEdge.source_id)
+            .filter(ConceptEdge.target_id == node.id)
+            .limit(limit)
+            .all()
+        )
+        result = [
+            {"concept": n.canonical_name, "type": n.type, "relation": e.relation, "arxiv_id": e.arxiv_id}
+            for e, n in edges + reverse
+        ]
+        return result[:limit]

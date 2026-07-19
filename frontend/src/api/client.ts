@@ -1,4 +1,4 @@
-import type { EvalStatus, HealthStatus, PaperListResponse, PaperSummary } from "./types";
+import type { EvalHistoryEntry, EvalStatus, HealthStatus, PaperListResponse, PaperSummary } from "./types";
 
 export const API_BASE = "/api/v1";
 
@@ -15,9 +15,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listPapers: (page = 1, perPage = 24, search?: string) =>
+  listPapers: (page = 1, perPage = 24, search?: string, status?: string) =>
     request<PaperListResponse>(
-      `/papers?page=${page}&per_page=${perPage}${search ? `&search=${encodeURIComponent(search)}` : ""}`,
+      `/papers?page=${page}&per_page=${perPage}` +
+        (search ? `&search=${encodeURIComponent(search)}` : "") +
+        (status ? `&status=${status}` : ""),
+    ),
+
+  patchPaper: (arxivId: string, body: { reading_status?: string; notes?: string }) =>
+    request<{ arxiv_id: string; reading_status: string }>(`/papers/${encodeURIComponent(arxivId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  zoteroImport: (useLocal = true, apiKey?: string, userId?: string) =>
+    request<{ queued: unknown[]; already_present: unknown[]; skipped: unknown[] }>(
+      `/integrations/zotero/import`,
+      {
+        method: "POST",
+        body: JSON.stringify({ use_local: useLocal, api_key: apiKey || null, zotero_user_id: userId || null }),
+      },
     ),
 
   getPaper: (arxivId: string) => request<PaperSummary & { chunks: unknown[] }>(`/papers/${arxivId}`),
@@ -26,7 +43,11 @@ export const api = {
 
   evalStatus: () => request<EvalStatus>(`/eval/status`),
 
-  runEval: () => request<{ status: string; message: string }>(`/eval/run`, { method: "POST" }),
+  evalHistory: (limit = 30) =>
+    request<{ history: EvalHistoryEntry[] }>(`/eval/history?limit=${limit}`),
+
+  runEval: () =>
+    request<{ status: string; message: string }>(`/eval/run?mode=golden&limit=5`, { method: "POST" }),
 
   sendFeedback: (queryId: string, rating: "up" | "down", correction?: string) =>
     request<{ status: string }>(`/feedback`, {

@@ -35,6 +35,7 @@ class CitationMeta:
     score: float = 0.0
     published_date: str = ""
     categories: list[str] = field(default_factory=list)
+    page: int | None = None  # 1-based PDF page for viewer deep-links
 
 
 @dataclass
@@ -118,6 +119,7 @@ def build_citation_context(
                 score=getattr(chunk, "score", 0.0),
                 published_date=getattr(chunk, "published_date", ""),
                 categories=getattr(chunk, "categories", []),
+                page=getattr(chunk, "page_number", None),
             )
         )
         chunk_ids.append(chunk.chunk_id)

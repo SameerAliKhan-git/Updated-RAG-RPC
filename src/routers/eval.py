@@ -23,7 +23,7 @@ router = APIRouter(
 )
 
 
-async def run_evaluation_task(app_redis, sample_rate: float) -> None:
+async def run_evaluation_task(app_redis, sample_rate: float, mode: str = "traces", limit: int = 10) -> None:
     """FastAPI background task to execute RAGAS evaluation and store results in Redis."""
     try:
         await app_redis.set(
@@ -33,13 +33,17 @@ async def run_evaluation_task(app_redis, sample_rate: float) -> None:
                     "status": "RUNNING",
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                     "scores": None,
+                    "mode": mode,
                 }
             ),
         )
 
-        from src.services.ragas_sampler import sample_traces_and_evaluate
+        from src.services.ragas_sampler import evaluate_golden_set, sample_traces_and_evaluate
 
-        scores = await sample_traces_and_evaluate(sample_rate=sample_rate)
+        if mode == "golden":
+            scores = await evaluate_golden_set(limit=limit)
+        else:
+            scores = await sample_traces_and_evaluate(sample_rate=sample_rate)
 
         await app_redis.set(
             "corpus:eval:status",
@@ -76,11 +80,34 @@ async def trigger_evaluation(
     request: Request,
     background_tasks: BackgroundTasks,
     sample_rate: float = 1.0,
+    mode: str = "traces",
+    limit: int = 10,
 ):
-    """Trigger background evaluation task."""
+    """Trigger background evaluation task.
+
+    mode="traces" scores recent Langfuse traces; mode="golden" runs the full
+    pipeline over the golden question set (slow, but reflects real quality).
+    """
     redis_client = request.app.state.redis
-    background_tasks.add_task(run_evaluation_task, redis_client, sample_rate)
-    return {"status": "success", "message": "Evaluation job triggered in background."}
+    background_tasks.add_task(run_evaluation_task, redis_client, sample_rate, mode, limit)
+    return {"status": "success", "message": f"Evaluation job ({mode}) triggered in background."}
+
+
+@router.get(
+    "/eval/history",
+    summary="Evaluation score history",
+    description="Returns recent evaluation runs (newest first) for trend charts.",
+)
+async def get_evaluation_history(request: Request, limit: int = 30):
+    """Read the eval trend history list from Redis."""
+    redis_client = request.app.state.redis
+    try:
+        raw = await redis_client.lrange("corpus:eval:history", 0, max(0, limit - 1))
+        entries = [json.loads(item) for item in raw]
+    except Exception as e:
+        logger.warning(f"Failed to read eval history: {e}")
+        entries = []
+    return {"history": entries}
 
 
 @router.get(

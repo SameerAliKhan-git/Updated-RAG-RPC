@@ -18,7 +18,11 @@ class AskRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000, description="The research question to ask.")
     session_id: str | None = Field(None, description="Session ID for multi-turn conversations.")
     filters: dict[str, Any] | None = Field(
-        None, description="Optional metadata filters (categories, date_from, date_to, authors)."
+        None, description="Optional metadata filters (categories, date_from, date_to, authors, arxiv_id(s), chunk_type)."
+    )
+    collection_id: str | None = Field(None, description="Scope retrieval to a collection's papers.")
+    verify: bool = Field(
+        False, description="Run the LLM faithfulness check on this answer (slower; per-claim grounding)."
     )
 
 
@@ -33,6 +37,13 @@ class SearchRequest(BaseModel):
     filter_authors: list[str] | None = None
     filter_date_from: str | None = None
     filter_date_to: str | None = None
+
+
+class PaperUpdateRequest(BaseModel):
+    """Request body for PATCH /papers/{arxiv_id} (reading tracker)."""
+
+    reading_status: str | None = Field(None, pattern="^(unread|to_read|reading|done)$")
+    notes: str | None = Field(None, max_length=10000)
 
 
 class FeedbackRequest(BaseModel):
@@ -58,6 +69,8 @@ class Citation(BaseModel):
     pdf_url: str
     section: str
     snippet: str
+    page: int | None = None
+    score: float = 0.0
 
 
 class AgenticResponse(BaseModel):
@@ -78,6 +91,7 @@ class AgenticResponse(BaseModel):
     session_id: str = ""
     trace_events: list[str] = Field(default_factory=list)
     cached: bool = False
+    verification: dict[str, Any] | None = None
 
 
 class SearchResult(BaseModel):
@@ -119,6 +133,8 @@ class PaperSummary(BaseModel):
     categories: list[str] = Field(default_factory=list)
     pdf_processed: bool = False
     chunk_count: int = 0
+    reading_status: str = "unread"
+    notes: str | None = None
 
 
 class PaperListResponse(BaseModel):

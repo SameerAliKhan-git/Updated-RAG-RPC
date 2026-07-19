@@ -92,8 +92,9 @@ class EmbeddingSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="EMBEDDING__", extra="ignore")
 
-    backend: str = "local"  # "local" (sentence-transformers) or "jina" (legacy rollback)
+    backend: str = "local"  # "local" (sentence-transformers), "ollama" (quantized, fast), "jina" (legacy)
     model_name: str = "BAAI/bge-m3"
+    ollama_model: str = "bge-m3"  # served by host Ollama when backend="ollama"
     device: str = "cpu"  # "cuda" only for offline reindex runs
     batch_size: int = 32
     max_length: int = 1024
@@ -188,6 +189,9 @@ class Settings(BaseSettings):
     guardrails_max_query_chars: int = Field(default=2000, alias="GUARDRAILS_MAX_QUERY_CHARS")
     grading_max_chunks: int = Field(default=12, alias="GRADING_MAX_CHUNKS")
     generation_max_tokens: int = Field(default=4096, alias="GENERATION_MAX_TOKENS")
+    model_autoselect: bool = Field(default=False, alias="MODEL_AUTOSELECT")
+    model_ladder: str = Field(default="llama3.2:3b,llama3.2:1b", alias="MODEL_LADDER")
+    zotero_local_url: str = Field(default="http://host.docker.internal:23119", alias="ZOTERO__LOCAL_URL")
 
     # Sub-settings (loaded from env as well)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)

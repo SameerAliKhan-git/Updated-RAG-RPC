@@ -55,6 +55,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from src.services.redis_client import create_redis_client
     engine, session_factory = create_engine_and_session(settings.postgres.database_url)
     PaperBase.metadata.create_all(bind=engine)
+
+    from src.db.migrations import run_startup_migrations
+
+    run_startup_migrations(engine)
     app.state.db_engine = engine
     app.state.db_session_factory = session_factory
     logger.info("corpus.postgres.connected")
@@ -81,6 +85,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if settings.reranker.enabled and settings.reranker.backend == "local":
         await _asyncio.to_thread(_get_cross_encoder)
         logger.info("corpus.reranker.ready", model=settings.reranker.model)
+
+    # Optional: pick the largest workable LLM before the first request
+    from src.services.model_select import autoselect_models
+
+    await autoselect_models()
+    logger.info("corpus.models.active", drafting=settings.litellm.drafting_model, fast=settings.litellm.fast_model)
 
     yield
 
@@ -146,14 +156,20 @@ def create_app() -> FastAPI:
 
     # ── Routers ──
     from src.routers.ask import router as ask_router
+    from src.routers.collections import router as collections_router
     from src.routers.eval import router as eval_router
     from src.routers.feedback import router as feedback_router
     from src.routers.health import router as health_router
+    from src.routers.integrations import router as integrations_router
+    from src.routers.sessions import router as sessions_router
 
     app.include_router(health_router, prefix="/api/v1", tags=["health"])
     app.include_router(ask_router, prefix="/api/v1", tags=["rag"])
     app.include_router(feedback_router, prefix="/api/v1", tags=["feedback"])
     app.include_router(eval_router, prefix="/api/v1", tags=["evaluation"])
+    app.include_router(collections_router, prefix="/api/v1", tags=["collections"])
+    app.include_router(sessions_router, prefix="/api/v1", tags=["sessions"])
+    app.include_router(integrations_router, prefix="/api/v1", tags=["integrations"])
 
     return app
 

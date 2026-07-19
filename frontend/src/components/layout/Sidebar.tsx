@@ -1,5 +1,9 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
+import { collectionsApi } from "../../api/collections";
 import { useSessions } from "../../hooks/useSessions";
+import { setActiveCollection, useActiveCollection } from "../../lib/activeCollection";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
@@ -41,6 +45,8 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         <SideLink to="/library" label="Library" icon={<BookIcon />} onNavigate={onNavigate} />
         <SideLink to="/system" label="System" icon={<PulseIcon />} onNavigate={onNavigate} />
       </nav>
+
+      <CollectionsSection onNavigate={onNavigate} />
 
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
         <p className="px-3 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>
@@ -84,6 +90,93 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         Every answer cited to its source.
       </p>
     </aside>
+  );
+}
+
+function CollectionsSection({ onNavigate }: { onNavigate: () => void }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const active = useActiveCollection();
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const { data } = useQuery({ queryKey: ["collections"], queryFn: collectionsApi.list, staleTime: 15_000 });
+  const collections = data?.collections ?? [];
+
+  const create = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    try {
+      const created = await collectionsApi.create(name);
+      setNewName("");
+      setCreating(false);
+      void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      setActiveCollection({ id: created.id, name: created.name });
+      navigate("/");
+      onNavigate();
+    } catch {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between px-3">
+        <p className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>
+          Collections
+        </p>
+        <button
+          aria-label="New collection"
+          onClick={() => setCreating((c) => !c)}
+          className="rounded-full px-1.5 text-sm"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          +
+        </button>
+      </div>
+      {creating && (
+        <div className="mt-1 px-3">
+          <input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void create();
+              if (e.key === "Escape") setCreating(false);
+            }}
+            placeholder="Collection name…"
+            className="w-full rounded-full px-3 py-1.5 text-xs outline-none"
+            style={{ background: "var(--surface-2)", color: "var(--text)" }}
+          />
+        </div>
+      )}
+      <ul className="mt-1 flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+        {collections.map((c) => {
+          const isActive = active?.id === c.id;
+          return (
+            <li key={c.id}>
+              <button
+                onClick={() => {
+                  setActiveCollection(isActive ? null : { id: c.id, name: c.name });
+                  navigate("/");
+                  onNavigate();
+                }}
+                className="flex w-full items-center justify-between rounded-full px-3 py-1.5 text-left text-sm transition-colors"
+                style={{
+                  background: isActive ? "var(--accent-soft)" : "transparent",
+                  color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                }}
+              >
+                <span className="truncate">{c.name}</span>
+                <span className="ml-2 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  {c.paper_count}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

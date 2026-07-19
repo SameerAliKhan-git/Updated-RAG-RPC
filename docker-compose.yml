@@ -94,6 +94,7 @@ services:
       - corpus-network
 
   opensearch-dashboards:
+    profiles: ["observability"]
     image: opensearchproject/opensearch-dashboards:2.19.0
     container_name: corpus-dashboards
     ports:
@@ -150,6 +151,7 @@ services:
 
   # ── Ingestion Orchestration ────────────────────────────
   airflow:
+    profiles: ["airflow"]
     build:
       context: ./airflow
       dockerfile: Dockerfile
@@ -187,6 +189,7 @@ services:
 
   # ── Observability: Langfuse ────────────────────────────
   clickhouse:
+    profiles: ["observability"]
     image: clickhouse/clickhouse-server:24.8-alpine
     container_name: corpus-clickhouse
     environment:
@@ -207,6 +210,7 @@ services:
       - corpus-network
 
   langfuse-web:
+    profiles: ["observability"]
     image: docker.io/langfuse/langfuse:3
     container_name: corpus-langfuse-web
     restart: unless-stopped
@@ -269,6 +273,7 @@ services:
       - corpus-network
 
   langfuse-worker:
+    profiles: ["observability"]
     image: docker.io/langfuse/langfuse-worker:3
     container_name: corpus-langfuse-worker
     restart: unless-stopped
@@ -318,6 +323,7 @@ services:
       - corpus-network
 
   langfuse-postgres:
+    profiles: ["observability"]
     image: postgres:17
     container_name: corpus-langfuse-postgres
     restart: unless-stopped
@@ -342,6 +348,7 @@ services:
       - corpus-network
 
   langfuse-redis:
+    profiles: ["observability"]
     image: docker.io/redis:7
     container_name: corpus-langfuse-redis
     restart: unless-stopped
@@ -357,6 +364,7 @@ services:
       - corpus-network
 
   langfuse-minio:
+    profiles: ["observability"]
     image: docker.io/minio/minio
     container_name: corpus-langfuse-minio
     restart: unless-stopped
@@ -421,6 +429,7 @@ services:
     restart: unless-stopped
 
   prometheus:
+    profiles: ["observability"]
     image: prom/prometheus:v2.51.0
     container_name: corpus-prometheus
     volumes:
@@ -433,6 +442,7 @@ services:
     restart: unless-stopped
 
   grafana:
+    profiles: ["observability"]
     image: grafana/grafana:10.4.1
     container_name: corpus-grafana
     volumes:

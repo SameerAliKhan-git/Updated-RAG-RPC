@@ -34,6 +34,7 @@ class RetrievedChunk:
     categories: list[str]
     published_date: str
     score: float = 0.0
+    page_number: int | None = None
 
     @property
     def paper_title(self) -> str:
@@ -62,8 +63,8 @@ class HybridSearchService:
         self,
         query: str,
         top_k: int = 10,
-        filter_arxiv_id: str | None = None,
-        filter_chunk_type: str | None = None,
+        filter_arxiv_ids: list[str] | str | None = None,
+        filter_chunk_type: list[str] | str | None = None,
         filter_categories: list[str] | None = None,
         filter_authors: list[str] | None = None,
         filter_date_from: str | None = None,
@@ -74,8 +75,8 @@ class HybridSearchService:
         Args:
             query: Natural-language user query.
             top_k: Number of top results to return.
-            filter_arxiv_id: Optional arXiv ID to narrow search to a single paper.
-            filter_chunk_type: Optional chunk type filter (body, table, equation).
+            filter_arxiv_ids: Optional arXiv ID(s) to scope search (paper / collection).
+            filter_chunk_type: Optional chunk type(s) filter (body, table, figure-caption, equation).
 
         Returns:
             List of RetrievedChunk ordered by relevance.
@@ -85,7 +86,7 @@ class HybridSearchService:
 
         # 2. Build filter clauses
         filter_clauses = self._build_filters(
-            filter_arxiv_id,
+            filter_arxiv_ids,
             filter_chunk_type,
             filter_categories,
             filter_authors,
@@ -112,15 +113,8 @@ class HybridSearchService:
         return self._parse_results(response)
 
     async def _embed_query(self, query: str) -> list[float]:
-        """Generate query embedding using Jina."""
-        api_key = self.settings.jina.api_key
-        if not api_key or "your_jina_api_key" in api_key:
-            # Use dummy embedding for development
-            dim = self.settings.opensearch.vector_dimension
-            return [1.0] + [0.0] * (dim - 1)
-
-        embeddings = await self.embeddings_client.embed_query(query)
-        return embeddings
+        """Generate query embedding via the configured (local/Ollama) backend."""
+        return await self.embeddings_client.embed_query(query)
 
     async def _fallback_bm25_search(self, query: str, top_k: int, filter_clauses: list[dict]) -> list[RetrievedChunk]:
         """Pure BM25 fallback if hybrid search fails."""
@@ -154,19 +148,21 @@ class HybridSearchService:
 
     def _build_filters(
         self,
-        filter_arxiv_id: str | None = None,
-        filter_chunk_type: str | None = None,
+        filter_arxiv_ids: list[str] | str | None = None,
+        filter_chunk_type: list[str] | str | None = None,
         filter_categories: list[str] | None = None,
         filter_authors: list[str] | None = None,
         filter_date_from: str | None = None,
         filter_date_to: str | None = None,
     ) -> list[dict]:
         """Build OpenSearch filter clauses for metadata-based filtering."""
-        filters = []
-        if filter_arxiv_id:
-            filters.append({"term": {"arxiv_id": filter_arxiv_id}})
+        filters: list[dict[str, Any]] = []
+        if filter_arxiv_ids:
+            ids = [filter_arxiv_ids] if isinstance(filter_arxiv_ids, str) else list(filter_arxiv_ids)
+            filters.append({"terms": {"arxiv_id": ids}})
         if filter_chunk_type:
-            filters.append({"term": {"chunk_type": filter_chunk_type}})
+            types = [filter_chunk_type] if isinstance(filter_chunk_type, str) else list(filter_chunk_type)
+            filters.append({"terms": {"chunk_type": types}})
         if filter_categories:
             filters.append({"terms": {"categories": filter_categories}})
         if filter_authors:
@@ -203,6 +199,9 @@ class HybridSearchService:
                 "k": top_k,
             }
         }
+        # Scope the KNN side too — without this, out-of-scope chunks leak in via RRF
+        if filter_clauses:
+            knn_query["embedding"]["filter"] = {"bool": {"filter": filter_clauses}}
 
         body: dict[str, Any] = {
             "size": top_k,
@@ -246,6 +245,7 @@ class HybridSearchService:
                     categories=source.get("categories", []),
                     published_date=source.get("published_date", ""),
                     score=hit.get("_score", 0.0),
+                    page_number=source.get("page_number"),
                 )
             )
         return chunks
