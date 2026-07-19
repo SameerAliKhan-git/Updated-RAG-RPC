@@ -27,6 +27,10 @@ export function setActiveCollection(value: ActiveCollection | null): void {
   listeners.forEach((fn) => fn());
 }
 
+export function getActiveCollection(): ActiveCollection | null {
+  return cached;
+}
+
 export function useActiveCollection(): ActiveCollection | null {
   return useSyncExternalStore(
     (onChange) => {

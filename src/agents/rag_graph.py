@@ -572,18 +572,52 @@ async def generate(state: AgentState) -> AgentState:
     # True token streaming: push each LLM token live while accumulating the full
     # answer for downstream verification. Regeneration retries are not streamed —
     # the verified answer arrives in the final `done` payload.
-    if state.get("emit") is not None and retry_num == 0:
-        parts: list[str] = []
-        async for token in stream_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens):
-            parts.append(token)
-            _emit_live(state, {"type": "token", "text": token})
-        answer = "".join(parts)
-    else:
-        answer = await call_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens)
+    try:
+        if state.get("emit") is not None and retry_num == 0:
+            parts: list[str] = []
+            async for token in stream_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens):
+                parts.append(token)
+                _emit_live(state, {"type": "token", "text": token})
+            answer = "".join(parts)
+        else:
+            answer = await call_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens)
+        if not answer.strip() or answer.startswith("[LLM Error"):
+            raise RuntimeError(f"LLM returned unusable output: {answer[:120]!r}")
+    except Exception as e:
+        # Graceful degradation: retrieval worked, generation didn't. Serve the
+        # top passages verbatim with citations instead of failing the request.
+        logger.error(f"Generation failed, falling back to extractive answer: {e}")
+        _emit(state, "generation unavailable — serving extractive answer from sources")
+        answer = _extractive_answer(query, state.get("citation_meta", []))
 
     _emit(state, "answer generated")
 
     return {**state, "answer_markdown": answer}
+
+
+def _extractive_answer(query: str, citation_meta: list[dict[str, Any]]) -> str:
+    """LLM-free fallback: quote the top retrieved passages with citations."""
+    if not citation_meta:
+        return (
+            "**The answer engine is temporarily unavailable and no sources were retrieved.** "
+            "Please check that Ollama is running and try again."
+        )
+    lines = [
+        "**⚠ Answer generation is temporarily unavailable — showing the most relevant "
+        "passages from your corpus instead.**",
+        "",
+        f"For your question: *{query}*",
+        "",
+    ]
+    for cm in citation_meta[:3]:
+        snippet = (cm.get("snippet") or "").strip()
+        section = cm.get("section", "")
+        cid = cm.get("citation_id", "?")
+        lines.append(f"> {snippet} [{cid}]")
+        lines.append(f"> — *{cm.get('paper_title', 'Unknown paper')}*, {section}")
+        lines.append("")
+    lines.append("_Retrieval and citations are unaffected; retry once the model is back for a synthesized answer._")
+    return "\n".join(lines)
 
 
 @trace_node("verify_citations")

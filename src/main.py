@@ -92,10 +92,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await autoselect_models()
     logger.info("corpus.models.active", drafting=settings.litellm.drafting_model, fast=settings.litellm.fast_model)
 
+    # Hourly canary probe — synthetic retrieval + LLM check, surfaced at /health/canary
+    import asyncio as _asyncio_canary
+
+    from src.services.canary import canary_loop
+
+    canary_task = _asyncio_canary.create_task(canary_loop(app.state))
+    logger.info("corpus.canary.scheduled")
+
     yield
 
     # ── Shutdown: close connections ──
     logger.info("corpus.shutdown")
+    canary_task.cancel()
 
     if hasattr(app.state, "redis") and app.state.redis:
         await app.state.redis.close()
@@ -157,6 +166,7 @@ def create_app() -> FastAPI:
     # ── Routers ──
     from src.routers.ask import router as ask_router
     from src.routers.collections import router as collections_router
+    from src.routers.concepts import router as concepts_router
     from src.routers.eval import router as eval_router
     from src.routers.feedback import router as feedback_router
     from src.routers.health import router as health_router
@@ -170,6 +180,11 @@ def create_app() -> FastAPI:
     app.include_router(collections_router, prefix="/api/v1", tags=["collections"])
     app.include_router(sessions_router, prefix="/api/v1", tags=["sessions"])
     app.include_router(integrations_router, prefix="/api/v1", tags=["integrations"])
+    app.include_router(concepts_router, prefix="/api/v1", tags=["concepts"])
+
+    from src.routers.research import router as research_router
+
+    app.include_router(research_router, prefix="/api/v1", tags=["research"])
 
     return app
 

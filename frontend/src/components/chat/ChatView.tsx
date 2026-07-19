@@ -89,6 +89,8 @@ export function ChatView() {
     }
   }, []);
 
+  const sendRef = useRef<((q: string) => void) | null>(null);
+
   // Route change = switching conversations; server history wins over local cache
   useEffect(() => {
     setSessionId(routeSessionId ?? null);
@@ -107,6 +109,18 @@ export function ChatView() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, state.tokens, state.traces.length]);
+
+  // Galaxy view hands off questions via ?q= — send once, then clean the URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (q && !routeSessionId) {
+      window.history.replaceState(null, "", window.location.pathname);
+      // Defer one tick: sendRef is assigned in a later effect on first mount
+      setTimeout(() => sendRef.current?.(q), 50);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const send = useCallback(
     (query: string) => {
@@ -145,6 +159,10 @@ export function ChatView() {
     },
     [ask, sessionId, upsert, attachment, deepVerify, visualOnly, activeCollection],
   );
+
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
 
   const streaming = state.status === "streaming";
   const activeCitations: Citation[] = useMemo(() => {

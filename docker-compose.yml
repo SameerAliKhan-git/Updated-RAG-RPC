@@ -400,6 +400,29 @@ services:
       - corpus-network
     restart: unless-stopped
 
+  backup:
+    image: postgres:16-alpine
+    container_name: corpus-backup
+    environment:
+      - PGPASSWORD=rag_password
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c "while true; do
+        ts=$$(date +%Y%m%d_%H%M);
+        pg_dump -h postgres -U rag_user -Fc corpus_db > /backups/corpus_$$ts.dump 2>/backups/last_error.log
+          && echo \"backup ok: corpus_$$ts.dump\"
+          || echo \"backup FAILED at $$ts\";
+        ls -1t /backups/corpus_*.dump 2>/dev/null | tail -n +15 | xargs -r rm --;
+        sleep 86400;
+      done"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - corpus-network
+    restart: unless-stopped
+
   arq-worker:
     build: .
     container_name: corpus-arq-worker

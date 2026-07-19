@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.dependencies import get_db_session
@@ -165,3 +165,37 @@ async def remove_paper(collection_id: str, arxiv_id: str, db=Depends(get_db_sess
     if not deleted:
         raise HTTPException(status_code=404, detail="Paper is not in this collection.")
     return {"status": "removed", "arxiv_id": arxiv_id}
+
+
+# ── Audio overview (NotebookLM-style, local Piper TTS) ───────────
+
+
+@router.post("/collections/{collection_id}/audio", summary="Generate an audio overview of a collection")
+async def generate_audio(
+    collection_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    from src.services.audio_overview import generate_audio_overview
+
+    background_tasks.add_task(generate_audio_overview, collection_id, request.app.state)
+    return {"status": "generating", "collection_id": collection_id}
+
+
+@router.get("/collections/{collection_id}/audio/status", summary="Audio overview generation status")
+async def audio_status(collection_id: str, request: Request):
+    from src.services.audio_overview import get_audio_status
+
+    return await get_audio_status(request.app.state.redis, collection_id)
+
+
+@router.get("/collections/{collection_id}/audio", summary="Stream the collection's audio overview")
+async def get_audio(collection_id: str):
+    from fastapi.responses import FileResponse
+
+    from src.services.audio_overview import audio_file
+
+    path = audio_file(collection_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No audio generated yet.")
+    return FileResponse(path, media_type="audio/wav", filename=f"overview-{collection_id}.wav")

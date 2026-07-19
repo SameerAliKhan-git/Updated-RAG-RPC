@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { collectionsApi } from "../../api/collections";
 import { useSessions } from "../../hooks/useSessions";
@@ -43,6 +43,8 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
 
       <nav className="mt-5 flex flex-col gap-0.5">
         <SideLink to="/library" label="Library" icon={<BookIcon />} onNavigate={onNavigate} />
+        <SideLink to="/research" label="Deep Research" icon={<FlaskIcon />} onNavigate={onNavigate} />
+        <SideLink to="/galaxy" label="Galaxy" icon={<GalaxyIcon />} onNavigate={onNavigate} />
         <SideLink to="/system" label="System" icon={<PulseIcon />} onNavigate={onNavigate} />
       </nav>
 
@@ -150,18 +152,18 @@ function CollectionsSection({ onNavigate }: { onNavigate: () => void }) {
           />
         </div>
       )}
-      <ul className="mt-1 flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+      <ul className="mt-1 flex max-h-44 flex-col gap-0.5 overflow-y-auto">
         {collections.map((c) => {
           const isActive = active?.id === c.id;
           return (
-            <li key={c.id}>
+            <li key={c.id} className="group relative">
               <button
                 onClick={() => {
                   setActiveCollection(isActive ? null : { id: c.id, name: c.name });
                   navigate("/");
                   onNavigate();
                 }}
-                className="flex w-full items-center justify-between rounded-full px-3 py-1.5 text-left text-sm transition-colors"
+                className="flex w-full items-center justify-between rounded-full px-3 py-1.5 pr-8 text-left text-sm transition-colors"
                 style={{
                   background: isActive ? "var(--accent-soft)" : "transparent",
                   color: isActive ? "var(--accent)" : "var(--text-secondary)",
@@ -172,11 +174,78 @@ function CollectionsSection({ onNavigate }: { onNavigate: () => void }) {
                   {c.paper_count}
                 </span>
               </button>
+              {c.paper_count > 0 && <AudioOverviewButton collectionId={c.id} />}
             </li>
           );
         })}
       </ul>
     </div>
+  );
+}
+
+function AudioOverviewButton({ collectionId }: { collectionId: string }) {
+  const [state, setState] = useState<"idle" | "generating" | "playing">("idle");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pollRef = useRef(0);
+
+  const play = () => {
+    const audio = new Audio(`/api/v1/collections/${collectionId}/audio`);
+    audioRef.current = audio;
+    audio.onended = () => setState("idle");
+    void audio.play();
+    setState("playing");
+  };
+
+  const onClick = async () => {
+    if (state === "playing") {
+      audioRef.current?.pause();
+      setState("idle");
+      return;
+    }
+    const status = await fetch(`/api/v1/collections/${collectionId}/audio/status`).then((r) => r.json());
+    if (status.file_exists) {
+      play();
+      return;
+    }
+    setState("generating");
+    await fetch(`/api/v1/collections/${collectionId}/audio`, { method: "POST" });
+    pollRef.current = window.setInterval(async () => {
+      const s = await fetch(`/api/v1/collections/${collectionId}/audio/status`).then((r) => r.json());
+      if (s.status === "done" && s.file_exists) {
+        clearInterval(pollRef.current);
+        play();
+      } else if (s.status === "failed") {
+        clearInterval(pollRef.current);
+        setState("idle");
+      }
+    }, 4000);
+  };
+
+  return (
+    <button
+      aria-label="Audio overview"
+      title={state === "generating" ? "Generating audio overview…" : "Play audio overview"}
+      onClick={() => void onClick()}
+      className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 transition-opacity ${
+        state === "idle" ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+      }`}
+      style={{ color: state === "playing" ? "var(--accent)" : "var(--text-tertiary)" }}
+    >
+      {state === "generating" ? (
+        <span className="gradient-shimmer text-[10px] font-bold">…</span>
+      ) : (
+        <HeadphonesIcon />
+      )}
+    </button>
+  );
+}
+
+function HeadphonesIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </svg>
   );
 }
 
@@ -232,6 +301,26 @@ function BookIcon() {
     <svg {...iconProps}>
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  );
+}
+
+function FlaskIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M10 2v6L4.5 18a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 8V2" />
+      <line x1="8" y1="2" x2="16" y2="2" />
+      <line x1="7" y1="14" x2="17" y2="14" />
+    </svg>
+  );
+}
+
+function GalaxyIcon() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" transform="rotate(60 12 12)" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" transform="rotate(-60 12 12)" />
     </svg>
   );
 }

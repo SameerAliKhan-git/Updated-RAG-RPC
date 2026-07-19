@@ -3,6 +3,8 @@ import { useState } from "react";
 import { api } from "../../api/client";
 import { collectionsApi } from "../../api/collections";
 import type { ReadingStatus } from "../../api/types";
+import { PdfViewerPanel } from "../chat/PdfViewerPanel";
+import { FiguresModal } from "./FiguresModal";
 import { UploadModal } from "./UploadModal";
 
 const STATUS_CHIPS: { value: string; label: string }[] = [
@@ -24,6 +26,8 @@ export function LibraryView() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [figuresFor, setFiguresFor] = useState<{ arxivId: string; title: string } | null>(null);
+  const [pdfPage, setPdfPage] = useState<{ arxivId: string; title: string; page: number | null } | null>(null);
   const [zoteroBusy, setZoteroBusy] = useState(false);
   const [zoteroMsg, setZoteroMsg] = useState("");
   const queryClient = useQueryClient();
@@ -216,6 +220,14 @@ export function LibraryView() {
                         ))}
                       </select>
                     )}
+                    <button
+                      onClick={() => setFiguresFor({ arxivId: p.arxiv_id, title: p.title })}
+                      className="rounded-full px-2.5 py-1 text-[11px]"
+                      style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}
+                      title="Figures, tables & equations extracted from this paper"
+                    >
+                      Figures
+                    </button>
                   </div>
                 </div>
               ))}
@@ -247,6 +259,23 @@ export function LibraryView() {
           }}
         />
       )}
+
+      {figuresFor && (
+        <FiguresModal
+          arxivId={figuresFor.arxivId}
+          title={figuresFor.title}
+          onClose={() => setFiguresFor(null)}
+          onOpenPdf={(page) => {
+            setPdfPage({ arxivId: figuresFor.arxivId, title: figuresFor.title, page });
+            setFiguresFor(null);
+          }}
+        />
+      )}
+
+      <PdfViewerPanel
+        target={pdfPage ? { arxivId: pdfPage.arxivId, title: pdfPage.title, page: pdfPage.page } : null}
+        onClose={() => setPdfPage(null)}
+      />
     </div>
   );
 }

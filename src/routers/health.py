@@ -126,3 +126,14 @@ async def health_check(request: Request) -> HealthResponse:
         environment=settings.environment,
         services=services,
     )
+
+
+@router.get("/health/canary", summary="Last synthetic canary probe result")
+async def canary_status(request: Request):
+    """Return the most recent hourly canary verdict (retrieval + LLM exercised for real)."""
+    from src.services.canary import get_last_canary
+
+    result = await get_last_canary(request.app.state.redis)
+    if result is None:
+        return {"status": "not_run_yet", "healthy": None}
+    return {"status": "ok" if result.get("healthy") else "failing", **result}

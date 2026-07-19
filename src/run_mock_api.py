@@ -327,6 +327,8 @@ if __name__ == "__main__":
         return {"status": "success", "message": "Feedback recorded."}
 
     # Start uvicorn
-    logger.info("Starting mock API server on port 8000...")
-    uvicorn.run(mock_app, host="127.0.0.1", port=8000)
+    import os
+    _port = int(os.getenv("MOCK_API_PORT", "8000"))
+    logger.info(f"Starting mock API server on port {_port}...")
+    uvicorn.run(mock_app, host="127.0.0.1", port=_port)
 
