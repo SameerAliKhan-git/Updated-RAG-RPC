@@ -33,7 +33,6 @@ services:
       - REDIS__HOST=redis
     volumes:
       - ./src:/app/src
-      - ./static:/app/static
       - ./data:/app/data
       - hf_cache:/root/.cache/huggingface
     networks:
@@ -407,15 +406,19 @@ services:
       - PGPASSWORD=rag_password
     volumes:
       - ./backups:/backups
-    entrypoint: >
-      sh -c "while true; do
-        ts=$$(date +%Y%m%d_%H%M);
-        pg_dump -h postgres -U rag_user -Fc corpus_db > /backups/corpus_$$ts.dump 2>/backups/last_error.log
-          && echo \"backup ok: corpus_$$ts.dump\"
-          || echo \"backup FAILED at $$ts\";
-        ls -1t /backups/corpus_*.dump 2>/dev/null | tail -n +15 | xargs -r rm --;
-        sleep 86400;
-      done"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          ts=$$(date +%Y%m%d_%H%M)
+          if pg_dump -h postgres -U rag_user -Fc corpus_db > /backups/corpus_$$ts.dump 2>/backups/last_error.log; then
+            echo "backup ok: corpus_$$ts.dump"
+          else
+            echo "backup FAILED at $$ts — see /backups/last_error.log"
+          fi
+          ls -1t /backups/corpus_*.dump 2>/dev/null | tail -n +15 | xargs -r rm --
+          sleep 86400
+        done
     depends_on:
       postgres:
         condition: service_healthy

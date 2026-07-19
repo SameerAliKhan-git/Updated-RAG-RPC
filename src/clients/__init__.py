@@ -1,1 +1,1 @@
-"""Corpus — clients package (Gradio UI, Telegram bot)."""
+"""Corpus — clients package (Telegram bot)."""

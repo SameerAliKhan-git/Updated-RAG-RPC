@@ -59,3 +59,8 @@ node_modules/
 airflow/logs/
 airflow/simple_auth_manager_passwords.json.generated
 backups/
+
+# Artifacts
+test-results/
+models/reranker-tuned/
+data/audio/
