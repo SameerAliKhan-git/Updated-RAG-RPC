@@ -46,6 +46,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _configure_logging()
     logger.info("corpus.startup", environment=settings.environment, debug=settings.debug)
 
+    # ── Fail loud on insecure auth defaults outside local dev ──
+    # In development, verify_api_key() short-circuits auth entirely — fine for
+    # localhost. Outside development, an unset or still-placeholder API_KEY
+    # means every request is either rejected or (worse) accepted using the
+    # literal string from .env.example, which is public. Refuse to boot with
+    # ENVIRONMENT=production in that state; warn loudly for any other non-dev value.
+    _PLACEHOLDER_API_KEY = "change-me-to-a-real-api-key"
+    if settings.environment != "development":
+        insecure_key = not settings.api_key or settings.api_key == _PLACEHOLDER_API_KEY
+        if insecure_key and settings.environment == "production":
+            raise RuntimeError(
+                "Refusing to start with ENVIRONMENT=production and no real API_KEY. "
+                "Set API_KEY in .env to a strong secret (or set ENVIRONMENT=development "
+                "for trusted local-only use)."
+            )
+        if insecure_key:
+            logger.warning(
+                "corpus.auth.insecure_default_api_key",
+                environment=settings.environment,
+                hint="API_KEY is unset or still the .env.example placeholder — "
+                "set a real secret before exposing this beyond localhost.",
+            )
+
     # ── Startup: initialize connection pools ──
     from src.db.opensearch import create_opensearch_client
     from src.db.postgres import create_engine_and_session
