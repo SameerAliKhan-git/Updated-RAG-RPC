@@ -97,7 +97,7 @@ sequenceDiagram
         G->>O: generate
         O-->>U: token events (live, word by word)
     end
-    G->>G: verify citations (strip invented [N]; deep verify if on)
+    G->>G: verify citations (strip invented [N], deep verify if on)
     G-->>U: citation events (paper, section, page)
     G-->>U: done {verified answer, grounding note}
     U->>U: click [N] → PDF opens at page, passage highlighted
