@@ -15,8 +15,8 @@ The UI follows the **Google Gemini design language** — light/dark themes, the 
 | **Trustworthy answers** | Inline `[N]` citations → exact PDF page with passage highlighting · deterministic + optional LLM claim verification ("deep verify") · honest gap admission · extractive fallback when the LLM is down (retrieval never fails) |
 | **Gemini-style chat** | True token streaming (SSE) · live agent-trace timeline · voice input · attach-a-PDF and chat with it · collections (notebook-scoped chat) · semantic answer cache |
 | **Research tools** | **Deep Research**: background agent writes a fully-cited literature review · **Research Galaxy**: interactive concept-graph visualization · related-work discovery via Semantic Scholar · audio overviews (local Piper TTS) · figures/tables gallery + visual-only search · reading tracker · Zotero import · export to Markdown + BibTeX |
-| **Quality flywheel** | Nightly golden-set evaluation (RAGAS + retrieval hit@k/MRR) with trend charts · thumbs feedback → monthly reranker fine-tuning · hourly canary probe |
-| **Operations** | Nightly Postgres backups + one-command restore · Prometheus metrics + Grafana dashboard · Langfuse tracing (opt-in) · lean/full Docker profiles · CI with unit, integration, and browser E2E tests |
+| **Quality flywheel** | Nightly golden-set evaluation (RAGAS + retrieval hit@k/MRR) with trend charts · thumbs feedback → monthly reranker fine-tuning with an **auto-promotion eval gate** · hourly canary probe |
+| **Operations** | Nightly Postgres backups + one-command restore · Prometheus metrics + Grafana dashboard · Langfuse tracing (opt-in) · request correlation IDs · dead-letter view for failed ingestions · lean/full Docker profiles · CI with unit, integration, and browser E2E tests |
 
 ---
 
@@ -154,6 +154,9 @@ docker compose --profile telegram up -d         # Telegram bot (needs TELEGRAM__
 | `ENABLE_LLM_VERIFICATION` | `false` | Always-on LLM claim checking (the UI shield toggles it per-question) |
 | `SEMANTIC_CACHE_ENABLED` | `true` | Serve near-duplicate questions instantly |
 | `GRADING_MAX_CHUNKS` / `GENERATION_MAX_TOKENS` | `8` / `1024` | CPU latency budget knobs |
+| `API_KEY` + `ENVIRONMENT` | — | Auth is enforced outside `development`. nginx injects the key for the SPA, so the UI keeps working and the key never reaches the browser |
+| `CORS_ALLOW_ORIGINS` | `localhost:7860,5173,5174` | Only needed for browser clients on a *different* origin than the API |
+| `RERANKER__AUTO_PROMOTE` | `true` | Load a feedback-tuned reranker that passed its eval gate, without an `.env` edit |
 
 ## Operations
 

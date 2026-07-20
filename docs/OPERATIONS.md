@@ -51,11 +51,12 @@ Login credentials for Grafana/Langfuse/Airflow: see `local_credentials.txt` (git
 |---|---|
 | Ingest recent arXiv papers | `docker exec corpus-api python -m src.run_ingest` (or the daily Airflow DAG) |
 | Ingest one specific paper | UI → Library → Upload, or `POST /api/v1/papers/{arxiv_id}/ingest` |
+| Delete a paper (everywhere) | UI → Library → Delete on the card, or `DELETE /api/v1/papers/{arxiv_id}` — removes chunks, OpenSearch docs, concept-graph rows, and the cached PDF |
 | Re-embed / rebuild search index | `uv run python -m src.run_reindex` (**required after changing `EMBEDDING__BACKEND`**; flushes semantic cache) |
 | Manual backup | `docker exec corpus-backup sh -c 'pg_dump -h postgres -U rag_user -Fc corpus_db > /backups/manual.dump'` (nightly is automatic → `./backups/`) |
 | **Disaster restore** | `.\scripts\restore.ps1` — drops DB, restores latest dump, rebuilds the index |
 | Golden-set evaluation | System page → Run evaluation, or `POST /api/v1/eval/run?mode=golden&limit=10` |
-| Train reranker on feedback | `uv run python scripts/train_reranker.py` (needs ≥50 rated answers), then set `RERANKER__MODEL=models/reranker-tuned` and recreate api |
+| Train reranker on feedback | `uv run python scripts/train_reranker.py` (needs ≥50 rated answers). Auto-promotes on a held-out eval win (writes `models/reranker-active.txt`); recreate api/arq-worker to load it. Pin manually with `RERANKER__AUTO_PROMOTE=false` + `RERANKER__MODEL=...` |
 | Concept graph rebuild | Airflow DAG `concept_graph_builder` (nightly when airflow profile is up) |
 
 **Config changes:** `docker restart` does **not** re-read `.env` — use
@@ -65,8 +66,12 @@ Login credentials for Grafana/Langfuse/Airflow: see `local_credentials.txt` (git
 
 - `GET /api/v1/health` — per-service connectivity + latency (Postgres, OpenSearch, Redis, Ollama)
 - `GET /api/v1/health/canary` — hourly synthetic probe that *actually* runs retrieval and a 1-token generation; `"status": "failing"` means users are impacted even if /health looks green
+- `GET /api/v1/health/dead-letter` — background ingestion jobs that failed (from the arq worker). `DELETE` the same path to clear it; re-trigger a fixed job with `POST /papers/{arxiv_id}/ingest`
 - `GET :8000/metrics` — Prometheus (request latency, pipeline stage timings, cache hit rate, router decisions, guardrail flags, LLM tokens)
 - Answer-quality trend: System page (faithfulness, relevancy, hit@k/MRR across eval runs)
+- **Correlation IDs**: every response carries an `X-Request-ID` header, stamped on every structured log line for that request. Grab it from a failed answer to pull the exact request's logs.
+
+**Auth in production**: set `ENVIRONMENT` away from `development` and a real `API_KEY` in `.env`. The API refuses to boot in `production` with a missing/placeholder key. nginx injects the key as `X-API-Key` for the web UI (via `CORPUS_API_KEY`, wired from `API_KEY` in compose), so the SPA keeps working while the key never ships in the browser bundle; external clients (Telegram, curl) must send `X-API-Key` themselves.
 
 ## 5. Validation After Changes
 
