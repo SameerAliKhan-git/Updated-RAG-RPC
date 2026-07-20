@@ -79,7 +79,7 @@ async def trigger_concept_build(
 
     current = await get_build_status(request.app.state.redis)
     if current.get("status") == "running":
-        return {"status": "already_running", **current}
+        return {**current, "status": "already_running"}
 
     background_tasks.add_task(run_concept_graph_job, request.app.state.redis, limit)
     logger.info(f"Concept graph on-demand build started (limit={limit})")
