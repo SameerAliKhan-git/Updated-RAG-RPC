@@ -39,6 +39,12 @@ export const api = {
 
   getPaper: (arxivId: string) => request<PaperSummary & { chunks: unknown[] }>(`/papers/${arxivId}`),
 
+  deletePaper: (arxivId: string) =>
+    request<{ status: string; opensearch_deleted: number; pdf_deleted: boolean }>(
+      `/papers/${encodeURIComponent(arxivId)}`,
+      { method: "DELETE" },
+    ),
+
   health: () => request<HealthStatus>(`/health`),
 
   evalStatus: () => request<EvalStatus>(`/eval/status`),

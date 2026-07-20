@@ -49,6 +49,23 @@ export function LibraryView() {
     void queryClient.invalidateQueries({ queryKey: ["collections"] });
   };
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const deletePaper = async (arxivId: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"?\n\nThis removes the paper, its chunks, search index entries, and cached PDF. This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(arxivId);
+    try {
+      await api.deletePaper(arxivId);
+      void queryClient.invalidateQueries({ queryKey: ["papers"] });
+      void queryClient.invalidateQueries({ queryKey: ["collections"] });
+    } catch (e) {
+      window.alert(`Delete failed: ${(e as Error).message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const importZotero = async () => {
     setZoteroBusy(true);
     setZoteroMsg("");
@@ -227,6 +244,16 @@ export function LibraryView() {
                       title="Figures, tables & equations extracted from this paper"
                     >
                       Figures
+                    </button>
+                    <button
+                      onClick={() => void deletePaper(p.arxiv_id, p.title)}
+                      disabled={deletingId === p.arxiv_id}
+                      className="ml-auto rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40"
+                      style={{ background: "var(--surface-2)", color: "var(--g-red)" }}
+                      title="Delete this paper and all its data"
+                      aria-label={`Delete ${p.title}`}
+                    >
+                      {deletingId === p.arxiv_id ? "Deleting…" : "Delete"}
                     </button>
                   </div>
                 </div>

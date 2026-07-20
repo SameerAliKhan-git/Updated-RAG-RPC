@@ -356,6 +356,30 @@ async def get_paper(
     }
 
 
+# ── DELETE /papers/{arxiv_id} — remove a paper everywhere ───────
+
+
+@router.delete(
+    "/papers/{arxiv_id}",
+    summary="Delete a paper and all its derived data (chunks, index, PDF, concepts)",
+)
+async def delete_paper(
+    arxiv_id: str,
+    request: Request,
+    db_session=Depends(get_db_session),
+):
+    """Remove a paper from every store. Postgres FK cascades handle chunks and
+    collection links; OpenSearch docs, concept-graph rows, and the cached PDF
+    are cleaned explicitly (no cascade reaches them)."""
+    from src.services.paper_admin import delete_paper_everywhere
+
+    try:
+        summary = delete_paper_everywhere(db_session, request.app.state.opensearch, arxiv_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"status": "deleted", **summary}
+
+
 # ── PATCH /papers/{arxiv_id} — reading tracker ──────────────────
 
 

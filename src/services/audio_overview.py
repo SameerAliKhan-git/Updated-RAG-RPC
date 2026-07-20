@@ -11,6 +11,7 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 from src.services.llm_adapter import call_fast_llm
 
@@ -95,8 +96,11 @@ async def generate_audio_overview(collection_id: str, app_state) -> None:
         voice = PiperVoice.load(str(_voice_model_path()))
         AUDIO_DIR.mkdir(parents=True, exist_ok=True)
         out_path = AUDIO_DIR / f"{collection_id}.wav"
+        # synthesize_wav writes directly into the wave file. NOTE: synthesize()
+        # takes a SynthesisConfig as its 2nd arg and returns audio chunks — passing
+        # the wave handle there (as this used to) silently produced no audio.
         with wave.open(str(out_path), "wb") as wav_file:
-            voice.synthesize(script.strip(), wav_file)
+            voice.synthesize_wav(script.strip(), wav_file)
 
         await set_status("done")
         logger.info(f"Audio overview ready for collection {collection_id}: {out_path}")
@@ -105,9 +109,9 @@ async def generate_audio_overview(collection_id: str, app_state) -> None:
         await set_status("failed", str(e)[:200])
 
 
-async def get_audio_status(redis, collection_id: str) -> dict:
+async def get_audio_status(redis, collection_id: str) -> dict[str, Any]:
     raw = await redis.get(STATUS_KEY.format(cid=collection_id))
-    status = json.loads(raw) if raw else {"status": "not_generated"}
+    status: dict[str, Any] = json.loads(raw) if raw else {"status": "not_generated"}
     status["file_exists"] = (AUDIO_DIR / f"{collection_id}.wav").exists()
     return status
 

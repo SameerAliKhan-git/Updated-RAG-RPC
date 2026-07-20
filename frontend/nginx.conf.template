@@ -1,3 +1,7 @@
+# Rendered at container start by the nginx image's envsubst step
+# (/etc/nginx/templates/*.template -> /etc/nginx/conf.d/*.conf). Only
+# environment variables are substituted, so nginx runtime vars like $uri /
+# $host / $remote_addr are preserved as-is.
 server {
     listen 80;
     server_name _;
@@ -18,6 +22,11 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        # Inject the API key server-side so it never ships in the browser bundle.
+        # The browser talks to nginx same-origin (no key needed); nginx adds the
+        # key when forwarding to the API, which enforces it outside dev mode.
+        # Empty when CORPUS_API_KEY is unset (dev), which the API ignores in debug.
+        proxy_set_header X-API-Key "${CORPUS_API_KEY}";
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 300s;

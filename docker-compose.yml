@@ -392,6 +392,11 @@ services:
     container_name: corpus-frontend
     ports:
       - "7860:80"
+    environment:
+      # nginx injects this as X-API-Key when proxying to the API, so the key
+      # stays server-side and never ships in the browser bundle. Empty in dev
+      # (API skips auth in debug mode); set API_KEY in .env for production.
+      - CORPUS_API_KEY=${API_KEY:-}
     depends_on:
       api:
         condition: service_healthy
