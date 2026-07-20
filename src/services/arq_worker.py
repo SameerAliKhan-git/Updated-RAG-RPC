@@ -43,14 +43,28 @@ async def ingest_single_paper_task(ctx: dict, arxiv_id: str) -> dict:
             stats = await orchestrator.ingest_papers(category="", limit=1, specific_arxiv_id=arxiv_id)
 
         logger.info(f"Arq job complete: Ingested paper {arxiv_id}. Stats: {stats}")
+        # A paper that fetched but couldn't be parsed is a soft failure worth surfacing.
+        if stats.get("parse_failed"):
+            await _deadletter(ctx, arxiv_id, "PDF fetched but could not be parsed (not searchable)")
         return stats
 
     except Exception as e:
         logger.error(f"Arq job failed for paper {arxiv_id}: {e}", exc_info=True)
+        await _deadletter(ctx, arxiv_id, str(e))
         return {"status": "failed", "error": str(e)}
 
     finally:
         engine.dispose()
+
+
+async def _deadletter(ctx: dict, arxiv_id: str, error: str) -> None:
+    """Record a failed ingestion to the dead-letter list via the worker's Redis."""
+    redis = ctx.get("redis")
+    if redis is None:
+        return
+    from src.services.deadletter import record_failed_job
+
+    await record_failed_job(redis, "ingest_single_paper_task", arxiv_id, error)
 
 
 # ─── Arq Worker Configuration ──────────────────────────────────────

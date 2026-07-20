@@ -137,3 +137,21 @@ async def canary_status(request: Request):
     if result is None:
         return {"status": "not_run_yet", "healthy": None}
     return {"status": "ok" if result.get("healthy") else "failing", **result}
+
+
+@router.get("/health/dead-letter", summary="Recent failed background jobs")
+async def dead_letter(request: Request):
+    """Failed ingestion jobs the arq worker recorded — re-trigger via
+    POST /papers/{arxiv_id}/ingest once the cause is fixed."""
+    from src.services.deadletter import list_failed_jobs
+
+    jobs = await list_failed_jobs(request.app.state.redis)
+    return {"count": len(jobs), "jobs": jobs}
+
+
+@router.delete("/health/dead-letter", summary="Clear the dead-letter list")
+async def clear_dead_letter(request: Request):
+    from src.services.deadletter import clear_failed_jobs
+
+    await clear_failed_jobs(request.app.state.redis)
+    return {"status": "cleared"}

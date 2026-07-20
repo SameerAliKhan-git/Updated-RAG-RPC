@@ -154,6 +154,9 @@ class RerankerSettings(BaseSettings):
     batch_size: int = 8
     top_k: int = 8
     timeout: int = 30
+    # When true, prefer a feedback-trained model auto-promoted by the training
+    # DAG (via models/reranker-active.txt) over `model`. Set false to pin `model`.
+    auto_promote: bool = True
 
 
 class LiteLLMSettings(BaseSettings):

@@ -24,6 +24,26 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("train_reranker")
 
 OUTPUT_DIR = Path("models/reranker-tuned")
+ACTIVE_POINTER = Path("models/reranker-active.txt")
+# Tuned must beat base AUC by at least this margin on held-out pairs to promote.
+PROMOTION_MARGIN = 0.02
+
+
+def _rank_auc(scores: list[float], labels: list[float]) -> float:
+    """ROC-AUC via the Mann-Whitney rank statistic (no sklearn dependency).
+
+    Fraction of (positive, negative) pairs the model ranks correctly; 0.5 is
+    random. Returns 0.5 when either class is absent (uninformative eval)."""
+    pos = [s for s, y in zip(scores, labels, strict=True) if y >= 0.5]
+    neg = [s for s, y in zip(scores, labels, strict=True) if y < 0.5]
+    if not pos or not neg:
+        return 0.5
+    wins = sum((p > n) + 0.5 * (p == n) for p in pos for n in neg)
+    return wins / (len(pos) * len(neg))
+
+
+def _score_pairs(model, pairs: list[tuple[str, str, float]]) -> list[float]:
+    return [float(s) for s in model.predict([(q, p) for q, p, _ in pairs], batch_size=8)]
 
 
 def collect_training_pairs(db) -> list[tuple[str, str, float]]:
@@ -81,22 +101,42 @@ def main() -> int:
         )
         return 0
 
+    import random
+
     from sentence_transformers import CrossEncoder, InputExample
     from torch.utils.data import DataLoader
 
-    examples = [InputExample(texts=[q, p], label=label) for q, p, label in pairs]
+    # Hold out 20% for an eval gate so we only promote a model that actually helps.
+    random.Random(42).shuffle(pairs)
+    split = max(1, int(len(pairs) * 0.2))
+    eval_pairs, train_pairs = pairs[:split], pairs[split:]
+
+    examples = [InputExample(texts=[q, p], label=label) for q, p, label in train_pairs]
+    base = CrossEncoder(args.base_model, num_labels=1, max_length=512)
+    base_auc = _rank_auc(_score_pairs(base, eval_pairs), [label for *_, label in eval_pairs])
+
     model = CrossEncoder(args.base_model, num_labels=1, max_length=512)
     loader = DataLoader(examples, shuffle=True, batch_size=8)
-
-    logger.info(f"Fine-tuning {args.base_model} for {args.epochs} epoch(s) on CPU...")
+    logger.info(f"Fine-tuning {args.base_model} for {args.epochs} epoch(s) on {len(train_pairs)} pairs (CPU)...")
     model.fit(train_dataloader=loader, epochs=args.epochs, warmup_steps=min(50, len(examples) // 4))
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     model.save(str(OUTPUT_DIR))
-    logger.info(
-        f"✓ Saved tuned reranker to {OUTPUT_DIR}. Activate with RERANKER__MODEL={OUTPUT_DIR} "
-        "and recreate the api container."
-    )
+
+    tuned_auc = _rank_auc(_score_pairs(model, eval_pairs), [label for *_, label in eval_pairs])
+    logger.info(f"Eval-gate AUC on {len(eval_pairs)} held-out pairs — base={base_auc:.3f} tuned={tuned_auc:.3f}")
+
+    if tuned_auc >= base_auc + PROMOTION_MARGIN:
+        ACTIVE_POINTER.write_text(str(OUTPUT_DIR), encoding="utf-8")
+        logger.info(
+            f"✓ Promoted: tuned model beat base by >= {PROMOTION_MARGIN}. Wrote {ACTIVE_POINTER}. "
+            "Recreate the api/arq-worker containers to load it."
+        )
+    else:
+        logger.info(
+            f"✗ Not promoted: tuned did not beat base by {PROMOTION_MARGIN}. "
+            f"Model saved to {OUTPUT_DIR} but the active pointer is unchanged."
+        )
     return 0
 
 

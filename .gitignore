@@ -63,5 +63,6 @@ backups/
 # Artifacts
 test-results/
 models/reranker-tuned/
+models/reranker-active.txt
 data/audio/
 *.tsbuildinfo

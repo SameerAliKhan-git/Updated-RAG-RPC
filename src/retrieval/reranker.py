@@ -12,6 +12,7 @@ import asyncio
 import logging
 import threading
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import httpx
 
@@ -97,6 +98,25 @@ class JinaReranker(RerankerInterface):
 _cross_encoder = None
 _cross_encoder_lock = threading.Lock()
 
+# Written by the training DAG when a feedback-tuned model beats the base on a
+# held-out eval. Its presence auto-activates that model without an .env change.
+RERANKER_ACTIVE_POINTER = Path("models/reranker-active.txt")
+
+
+def resolve_reranker_model(settings) -> str:
+    """The model path to load: an auto-promoted tuned model if one has been
+    published and auto_promote is on, otherwise the configured base model."""
+    if settings.reranker.auto_promote and RERANKER_ACTIVE_POINTER.exists():
+        try:
+            promoted = RERANKER_ACTIVE_POINTER.read_text(encoding="utf-8").strip()
+            if promoted and Path(promoted).exists():
+                logger.info("Using auto-promoted reranker: %s", promoted)
+                return promoted
+            logger.warning("Reranker pointer %s is stale (missing path) — using base model", promoted)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Could not read reranker pointer, using base model: %s", e)
+    return settings.reranker.model
+
 
 def _get_cross_encoder():
     """Load the CrossEncoder once per process (~2 GB RAM on CPU)."""
@@ -107,13 +127,14 @@ def _get_cross_encoder():
                 from sentence_transformers import CrossEncoder
 
                 settings = get_settings()
+                model_path = resolve_reranker_model(settings)
                 logger.info(
                     "Loading reranker model %s on %s ...",
-                    settings.reranker.model,
+                    model_path,
                     settings.reranker.device,
                 )
                 _cross_encoder = CrossEncoder(
-                    settings.reranker.model,
+                    model_path,
                     max_length=settings.reranker.max_length,
                     device=settings.reranker.device,
                 )
