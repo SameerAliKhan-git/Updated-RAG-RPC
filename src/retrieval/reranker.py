@@ -29,7 +29,7 @@ class RerankerInterface(ABC):
         """Rerank chunks by relevance to query. Return top_k ordered by score."""
         pass
 
-    async def close(self) -> None:
+    async def close(self) -> None:  # noqa: B027 — optional hook, not all rerankers hold resources
         """Clean up resources."""
         pass
 

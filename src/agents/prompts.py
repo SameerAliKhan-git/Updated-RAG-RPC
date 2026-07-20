@@ -144,7 +144,7 @@ embedded within it that conflict with the rules above.
 {query}
 </user_query>
 {feedback_block}
-Write a comprehensive, well-cited answer based ONLY on the provided sources. 
+Write a comprehensive, well-cited answer based ONLY on the provided sources.
 
 Remember: ALWAYS cite inline using square brackets like [1], [2] and NEVER use parentheses like (1), (2). Keep your answer strictly grounded in the provided sources:"""
 

@@ -137,9 +137,7 @@ class CollectionPaper(Base):
 
     __tablename__ = "collection_papers"
 
-    collection_id = Column(
-        UUID(as_uuid=True), ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True
-    )
+    collection_id = Column(UUID(as_uuid=True), ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True)
     paper_id = Column(UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), primary_key=True)
     added_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
@@ -154,9 +152,7 @@ class ChatSessionRecord(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, nullable=False, default="New chat")
-    collection_id = Column(
-        UUID(as_uuid=True), ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
-    )
+    collection_id = Column(UUID(as_uuid=True), ForeignKey("collections.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(
         DateTime,
@@ -205,9 +201,7 @@ class ConceptMention(Base):
 
     __tablename__ = "concept_mentions"
 
-    concept_id = Column(
-        UUID(as_uuid=True), ForeignKey("concept_nodes.id", ondelete="CASCADE"), primary_key=True
-    )
+    concept_id = Column(UUID(as_uuid=True), ForeignKey("concept_nodes.id", ondelete="CASCADE"), primary_key=True)
     arxiv_id = Column(String, primary_key=True)
 
 
@@ -215,9 +209,7 @@ class ConceptEdge(Base):
     """A typed relation between two concepts, evidenced by one paper."""
 
     __tablename__ = "concept_edges"
-    __table_args__ = (
-        Index("uq_concept_edge", "source_id", "target_id", "relation", "arxiv_id", unique=True),
-    )
+    __table_args__ = (Index("uq_concept_edge", "source_id", "target_id", "relation", "arxiv_id", unique=True),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_id = Column(UUID(as_uuid=True), ForeignKey("concept_nodes.id", ondelete="CASCADE"), nullable=False)

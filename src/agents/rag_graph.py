@@ -15,6 +15,8 @@ the corpus. This is enforced in verify_citations, not just prompted for.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -22,6 +24,7 @@ import uuid
 from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.prompts import (
     GAP_RESPONSE_TEMPLATE,
@@ -243,8 +246,6 @@ async def retrieve(state: AgentState) -> AgentState:
 @trace_node("grade")
 async def grade(state: AgentState) -> AgentState:
     """Node 4: CRAG-style LLM relevance grading per chunk."""
-    import asyncio
-
     chunks = state.get("all_retrieved_chunks", [])
     query = state.get("current_query", state["query"])
 
@@ -471,16 +472,14 @@ async def build_context(state: AgentState) -> AgentState:
     toolkit = state.get("toolkit")
     if toolkit and getattr(toolkit, "db_session", None):
         from src.models.paper import Chunk as DBChunk
+
         for chunk in reranked:
             try:
                 db_chunk = toolkit.db_session.query(DBChunk).filter(DBChunk.chunk_id == chunk.chunk_id).first()
                 if db_chunk:
                     siblings = (
                         toolkit.db_session.query(DBChunk)
-                        .filter(
-                            DBChunk.paper_id == db_chunk.paper_id,
-                            DBChunk.section_title == db_chunk.section_title
-                        )
+                        .filter(DBChunk.paper_id == db_chunk.paper_id, DBChunk.section_title == db_chunk.section_title)
                         .all()
                     )
                     if siblings:
@@ -560,10 +559,7 @@ async def generate(state: AgentState) -> AgentState:
 
     system_prompt = GENERATOR_SYSTEM_PROMPT
     user_content = GENERATOR_USER_PROMPT.format(context=context, query=query, feedback_block=feedback_block)
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content}
-    ]
+    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
 
     from src.config import get_settings
 
@@ -709,9 +705,8 @@ async def verify_citations(state: AgentState) -> AgentState:
                 )
 
         if feedback_list and retry_num < 2:
-            generation_feedback = (
-                "Please address the following citation issues in the rewrite:\n"
-                + "\n".join(feedback_list)
+            generation_feedback = "Please address the following citation issues in the rewrite:\n" + "\n".join(
+                feedback_list
             )
             # Increment retry count for the next iteration
             retry_num += 1
@@ -840,16 +835,13 @@ async def update_memory(state: AgentState) -> AgentState:
 
             if topics:
                 # Get or create User/Session Root node
-                user_node = toolkit.db_session.query(DBMemoryNode).filter(
-                    DBMemoryNode.session_id == session_id,
-                    DBMemoryNode.label == "User"
-                ).first()
+                user_node = (
+                    toolkit.db_session.query(DBMemoryNode)
+                    .filter(DBMemoryNode.session_id == session_id, DBMemoryNode.label == "User")
+                    .first()
+                )
                 if not user_node:
-                    user_node = DBMemoryNode(
-                        session_id=session_id,
-                        label="User",
-                        properties={"session_id": session_id}
-                    )
+                    user_node = DBMemoryNode(session_id=session_id, label="User", properties={"session_id": session_id})
                     toolkit.db_session.add(user_node)
                     toolkit.db_session.commit()
                     toolkit.db_session.refresh(user_node)
@@ -861,18 +853,17 @@ async def update_memory(state: AgentState) -> AgentState:
                         continue
 
                     # Get all Topic Nodes for this session
-                    topic_nodes = toolkit.db_session.query(DBMemoryNode).filter(
-                        DBMemoryNode.session_id == session_id,
-                        DBMemoryNode.label == "Topic"
-                    ).all()
-                    
+                    topic_nodes = (
+                        toolkit.db_session.query(DBMemoryNode)
+                        .filter(DBMemoryNode.session_id == session_id, DBMemoryNode.label == "Topic")
+                        .all()
+                    )
+
                     topic_node = next((n for n in topic_nodes if n.properties.get("name") == t_name), None)
 
                     if not topic_node:
                         topic_node = DBMemoryNode(
-                            session_id=session_id,
-                            label="Topic",
-                            properties={"name": t_name, "score": t_score}
+                            session_id=session_id, label="Topic", properties={"name": t_name, "score": t_score}
                         )
                         toolkit.db_session.add(topic_node)
                         toolkit.db_session.commit()
@@ -885,17 +876,14 @@ async def update_memory(state: AgentState) -> AgentState:
                         toolkit.db_session.commit()
 
                     # Create directed Interest Edge
-                    edge = toolkit.db_session.query(DBMemoryEdge).filter(
-                        DBMemoryEdge.source_id == user_node.id,
-                        DBMemoryEdge.target_id == topic_node.id
-                    ).first()
+                    edge = (
+                        toolkit.db_session.query(DBMemoryEdge)
+                        .filter(DBMemoryEdge.source_id == user_node.id, DBMemoryEdge.target_id == topic_node.id)
+                        .first()
+                    )
 
                     if not edge:
-                        edge = DBMemoryEdge(
-                            source_id=user_node.id,
-                            target_id=topic_node.id,
-                            relation="INTERESTED_IN"
-                        )
+                        edge = DBMemoryEdge(source_id=user_node.id, target_id=topic_node.id, relation="INTERESTED_IN")
                         toolkit.db_session.add(edge)
                         toolkit.db_session.commit()
 
@@ -916,8 +904,7 @@ async def handle_casual(state: AgentState) -> AgentState:
             {
                 "role": "system",
                 "content": (
-                    "You are Corpus, a research paper assistant. "
-                    "Respond helpfully to casual messages. Be brief."
+                    "You are Corpus, a research paper assistant. Respond helpfully to casual messages. Be brief."
                 ),
             },
             {"role": "user", "content": state["query"]},
@@ -989,7 +976,7 @@ def route_after_verification(state: AgentState) -> str:
 # ─── Graph Construction ───────────────────────────────────────────
 
 
-def build_agentic_graph() -> StateGraph:
+def build_agentic_graph() -> CompiledStateGraph:
     """Build and compile the full 11-node agentic RAG graph.
 
     Graph topology:
@@ -1207,8 +1194,6 @@ async def ask_corpus_streaming(
         {"type": "error", "message": str}   — on failure
         {"type": "done", "result": {...}}   — final payload (post-verification answer)
     """
-    import asyncio
-
     graph = get_agentic_graph()
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     _SENTINEL = "__graph_complete__"
@@ -1240,7 +1225,5 @@ async def ask_corpus_streaming(
         # Client may disconnect mid-stream — don't leave the graph running.
         if not task.done():
             task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
-            pass

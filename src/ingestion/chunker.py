@@ -54,7 +54,7 @@ class StructureAwareChunker:
             chunks.extend(section_chunks)
 
         # 2. Process Elements (Tables/Equations) as Atomic Chunks
-        for idx, el in enumerate(doc.elements):
+        for el in doc.elements:
             chunk_type = el.content_type
             # Keep table or equation fully intact as a single block
             chunk_text = el.content

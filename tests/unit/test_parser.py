@@ -13,7 +13,10 @@ def test_chunker_respects_sentence_boundaries():
 
     section = ParsedSection(
         title="Test Section",
-        text="This is sentence one. Sentence two is here. Sentence three should be in the next chunk because it exceeds the target size limit.",
+        text=(
+            "This is sentence one. Sentence two is here. Sentence three should be in the "
+            "next chunk because it exceeds the target size limit."
+        ),
     )
     doc = ParsedDocument(sections=[section], elements=[], raw_text="")
 

@@ -75,6 +75,6 @@ class PaperSource(ABC):
         """Download paper PDF to target directory and return file path."""
         pass
 
-    async def close(self) -> None:
+    async def close(self) -> None:  # noqa: B027 — optional hook, not all sources hold resources
         """Clean up any resources held by the source."""
         pass

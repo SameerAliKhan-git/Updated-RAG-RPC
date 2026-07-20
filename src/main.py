@@ -76,6 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # PostgreSQL
     from src.models.paper import Base as PaperBase  # noqa: F401
     from src.services.redis_client import create_redis_client
+
     engine, session_factory = create_engine_and_session(settings.postgres.database_url)
     PaperBase.metadata.create_all(bind=engine)
 

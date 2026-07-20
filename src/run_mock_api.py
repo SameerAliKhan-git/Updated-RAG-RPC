@@ -197,7 +197,6 @@ mock_papers = {
 
 if __name__ == "__main__":
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse, HTMLResponse
 
     # Build a standalone mock app — bypasses all real routers entirely
     mock_app = FastAPI(title="Corpus Mock", version="0.1.0-mock")
@@ -328,7 +327,7 @@ if __name__ == "__main__":
 
     # Start uvicorn
     import os
+
     _port = int(os.getenv("MOCK_API_PORT", "8000"))
     logger.info(f"Starting mock API server on port {_port}...")
     uvicorn.run(mock_app, host="127.0.0.1", port=_port)
-

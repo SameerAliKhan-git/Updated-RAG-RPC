@@ -40,9 +40,7 @@ LLM_TOKENS = Counter("corpus_llm_tokens_total", "LLM completion tokens generated
 
 GUARDRAIL_FLAGS = Counter("corpus_guardrail_flags_total", "Guardrail heuristics triggered", ["flag"])
 
-ROUTER_DECISIONS = Counter(
-    "corpus_router_decisions_total", "Query routing decisions", ["method", "route"]
-)
+ROUTER_DECISIONS = Counter("corpus_router_decisions_total", "Query routing decisions", ["method", "route"])
 
 
 def _normalize_path(path: str) -> str:

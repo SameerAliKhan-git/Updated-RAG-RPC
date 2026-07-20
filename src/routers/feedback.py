@@ -53,4 +53,4 @@ async def submit_feedback(
     except Exception as e:
         db_session.rollback()
         logger.error(f"Failed to submit feedback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Database write failure.")
+        raise HTTPException(status_code=500, detail="Database write failure.") from e

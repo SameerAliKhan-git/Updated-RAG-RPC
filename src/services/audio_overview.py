@@ -12,7 +12,6 @@ import logging
 import time
 from pathlib import Path
 
-from src.config import get_settings
 from src.services.llm_adapter import call_fast_llm
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ async def generate_audio_overview(collection_id: str, app_state) -> None:
 
     try:
         await set_status("writing_script")
-        from src.models.paper import CollectionPaper, Collection, Paper
+        from src.models.paper import Collection, CollectionPaper, Paper
 
         db = app_state.db_session_factory()
         try:

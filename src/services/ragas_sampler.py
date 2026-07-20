@@ -39,9 +39,7 @@ def _build_local_judge():
 
     settings = get_settings()
     judge_model = settings.litellm.reasoning_model.replace("ollama/", "")
-    llm = LangchainLLMWrapper(
-        ChatOllama(model=judge_model, base_url=settings.ollama.host, temperature=0.0)
-    )
+    llm = LangchainLLMWrapper(ChatOllama(model=judge_model, base_url=settings.ollama.host, temperature=0.0))
     embeddings = LangchainEmbeddingsWrapper(_LocalSTEmbeddings())
     return llm, embeddings
 
@@ -160,16 +158,24 @@ async def sample_traces_and_evaluate(sample_rate: float = 0.05) -> dict[str, Any
         {
             "query": "What are State Space Models?",
             "contexts": [
-                "State Space Models (SSMs) scale linearly O(N) in sequence length compared to Transformer self-attention."
+                "State Space Models (SSMs) scale linearly O(N) in sequence length "
+                "compared to Transformer self-attention."
             ],
-            "answer": "State Space Models (SSMs) are sequence modeling architectures that scale linearly with sequence length [1].",
+            "answer": (
+                "State Space Models (SSMs) are sequence modeling architectures that "
+                "scale linearly with sequence length [1]."
+            ),
         },
         {
             "query": "How does Reciprocal Rank Fusion merge query results?",
             "contexts": [
-                "Reciprocal Rank Fusion (RRF) sums the reciprocal rank 1 / (k + rank) of documents across different search lists."
+                "Reciprocal Rank Fusion (RRF) sums the reciprocal rank 1 / (k + rank) "
+                "of documents across different search lists."
             ],
-            "answer": "RRF combines search results by summing the reciprocal rank of each document across multiple search systems [1].",
+            "answer": (
+                "RRF combines search results by summing the reciprocal rank of each "
+                "document across multiple search systems [1]."
+            ),
         },
     ]
 

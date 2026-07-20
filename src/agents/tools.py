@@ -231,11 +231,7 @@ class ConceptGraphTools:
         node = self.db.query(ConceptNode).filter(ConceptNode.canonical_name == normalized).first()
         if node:
             return node
-        return (
-            self.db.query(ConceptNode)
-            .filter(ConceptNode.canonical_name.ilike(f"{normalized}%"))
-            .first()
-        )
+        return self.db.query(ConceptNode).filter(ConceptNode.canonical_name.ilike(f"{normalized}%")).first()
 
     def papers_for_concept(self, name: str, limit: int = 20) -> list[str]:
         """arxiv_ids of papers mentioning a concept — feeds scoped retrieval."""
@@ -244,12 +240,7 @@ class ConceptGraphTools:
         node = self._resolve_concept(name)
         if not node:
             return []
-        rows = (
-            self.db.query(ConceptMention.arxiv_id)
-            .filter(ConceptMention.concept_id == node.id)
-            .limit(limit)
-            .all()
-        )
+        rows = self.db.query(ConceptMention.arxiv_id).filter(ConceptMention.concept_id == node.id).limit(limit).all()
         return [r[0] for r in rows]
 
     def get_concept_neighbors(self, name: str, limit: int = 25) -> list[dict[str, str]]:

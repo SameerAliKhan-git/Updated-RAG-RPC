@@ -18,7 +18,8 @@ class AskRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000, description="The research question to ask.")
     session_id: str | None = Field(None, description="Session ID for multi-turn conversations.")
     filters: dict[str, Any] | None = Field(
-        None, description="Optional metadata filters (categories, date_from, date_to, authors, arxiv_id(s), chunk_type)."
+        None,
+        description="Optional metadata filters (categories, date_from, date_to, authors, arxiv_id(s), chunk_type).",
     )
     collection_id: str | None = Field(None, description="Scope retrieval to a collection's papers.")
     verify: bool = Field(

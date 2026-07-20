@@ -120,9 +120,7 @@ async def zotero_import(
             items = await fetch_items_local()
         else:
             if not body.api_key or not body.zotero_user_id:
-                raise HTTPException(
-                    status_code=422, detail="Web import needs api_key and zotero_user_id."
-                )
+                raise HTTPException(status_code=422, detail="Web import needs api_key and zotero_user_id.")
             items = await fetch_items_web(body.api_key, body.zotero_user_id)
     except HTTPException:
         raise
@@ -137,10 +135,7 @@ async def zotero_import(
     resolvable, skipped = classify_items(items)
 
     existing_ids = {
-        row[0]
-        for row in db.query(Paper.arxiv_id)
-        .filter(Paper.arxiv_id.in_([r["arxiv_id"] for r in resolvable]))
-        .all()
+        row[0] for row in db.query(Paper.arxiv_id).filter(Paper.arxiv_id.in_([r["arxiv_id"] for r in resolvable])).all()
     }
 
     queued = []
@@ -155,7 +150,5 @@ async def zotero_import(
         else:
             skipped.append({"key": "", "title": entry["title"], "reason": "queueing failed"})
 
-    logger.info(
-        f"Zotero import: {len(queued)} queued, {len(already_present)} present, {len(skipped)} skipped"
-    )
+    logger.info(f"Zotero import: {len(queued)} queued, {len(already_present)} present, {len(skipped)} skipped")
     return {"queued": queued, "already_present": already_present, "skipped": skipped}

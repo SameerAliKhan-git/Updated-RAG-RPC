@@ -107,7 +107,6 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             for c in citations:
                 cid = c.get("id")
                 pdf_url = c.get("pdf_url")
-                paper_title = c.get("paper_title", "Paper")
                 if pdf_url:
                     # Escape title characters for telegram markdown v2 if necessary, but v1 is simpler
                     # Let's use standard Markdown
@@ -116,7 +115,8 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if citations:
                 formatted_answer += "\n\n*Sources:*\n"
                 for c in citations:
-                    formatted_answer += f"• [{c.get('id')}] [{c.get('paper_title')}]({c.get('pdf_url')}) (Section: {c.get('section')})\n"
+                    title, section = c.get("paper_title"), c.get("section")
+                    formatted_answer += f"• [{c.get('id')}] [{title}]({c.get('pdf_url')}) (Section: {section})\n"
 
             if grounding_note:
                 formatted_answer += f"\n\n_{grounding_note}_"

@@ -55,9 +55,7 @@ def _session_dict(s, message_count: int | None = None) -> dict:
 async def list_sessions(limit: int = 50, db=Depends(get_db_session)):
     from src.models.paper import ChatSessionRecord
 
-    sessions = (
-        db.query(ChatSessionRecord).order_by(ChatSessionRecord.updated_at.desc()).limit(min(limit, 200)).all()
-    )
+    sessions = db.query(ChatSessionRecord).order_by(ChatSessionRecord.updated_at.desc()).limit(min(limit, 200)).all()
     return {"sessions": [_session_dict(s) for s in sessions]}
 
 

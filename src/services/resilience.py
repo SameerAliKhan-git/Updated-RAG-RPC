@@ -111,7 +111,8 @@ class CircuitBreaker:
                 if self.state in ("CLOSED", "HALF-OPEN"):
                     self.failures += 1
                     logger.warning(
-                        f"Circuit Breaker '{self.name}' recorded failure ({self.failures}/{self.failure_threshold}): {e}"
+                        f"Circuit Breaker '{self.name}' recorded failure "
+                        f"({self.failures}/{self.failure_threshold}): {e}"
                     )
                     if self.failures >= self.failure_threshold or self.state == "HALF-OPEN":
                         self.state = "OPEN"

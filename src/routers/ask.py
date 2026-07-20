@@ -20,18 +20,18 @@ from fastapi.responses import StreamingResponse
 from src.dependencies import get_db_session, get_opensearch, get_redis
 from src.middleware.auth import verify_api_key
 from src.middleware.rate_limiter import rate_limiter
-from src.services.guardrails import sanitize_query
 from src.schemas.ask import (
     AgenticResponse,
     AskRequest,
     Citation,
-    PaperUpdateRequest,
     PaperListResponse,
     PaperSummary,
+    PaperUpdateRequest,
     SearchRequest,
     SearchResponse,
     SearchResult,
 )
+from src.services.guardrails import sanitize_query
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,10 @@ router = APIRouter(
     "/ask-agentic",
     response_model=AgenticResponse,
     summary="Full agentic RAG pipeline",
-    description="Runs the complete agentic loop: route → plan → retrieve → grade → rerank → generate → verify. Returns structured JSON with answer + citations.",
+    description=(
+        "Runs the complete agentic loop: route → plan → retrieve → grade → rerank → "
+        "generate → verify. Returns structured JSON with answer + citations."
+    ),
     dependencies=[Depends(rate_limiter)],
 )
 async def ask_agentic(

@@ -31,6 +31,7 @@ async def _protected_acompletion(**kwargs: Any):
 
     return await litellm.acompletion(**kwargs)
 
+
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 

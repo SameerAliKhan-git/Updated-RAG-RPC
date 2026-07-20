@@ -80,6 +80,23 @@ select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection pattern (`db=Depends(get_db_session)`, file
+# uploads via `File(...)`) calls these in argument defaults by design — that's
+# how FastAPI resolves them per-request. Not the mutable-default-arg bug B008
+# guards against elsewhere.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.File", "fastapi.Query", "fastapi.Security"]
+
+[tool.ruff.lint.per-file-ignores]
+# Long single-line LLM prompt templates and mock fixture data — wrapping them
+# would fight the content, not improve readability.
+"src/agents/prompts.py" = ["E501"]
+"src/run_mock_api.py" = ["E402", "E501"]
+# sys.path manipulation must precede these local imports in standalone scripts.
+"src/run_ingest.py" = ["E402"]
+"src/services/arq_worker.py" = ["E402"]
+"src/clients/telegram_bot.py" = ["E402"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

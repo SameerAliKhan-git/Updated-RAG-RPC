@@ -47,8 +47,10 @@ async def reindex() -> int:
         if total_chunks == 0:
             logger.warning("No chunks in Postgres — nothing to reindex.")
             return 0
-        logger.info(f"Reindexing {total_chunks} chunks into '{index_name}' "
-                    f"with {settings.embedding.model_name} on {settings.embedding.device}...")
+        logger.info(
+            f"Reindexing {total_chunks} chunks into '{index_name}' "
+            f"with {settings.embedding.model_name} on {settings.embedding.device}..."
+        )
 
         # Drop and recreate the index with the existing mapping
         if os_client.indices.exists(index=index_name):

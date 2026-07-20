@@ -259,6 +259,7 @@ class IngestionOrchestrator:
 
         # Generate layout summaries for tables/figures before embedding
         from src.services.llm_adapter import call_reasoning_llm
+
         for chunk in chunks:
             if chunk.chunk_type in ("table", "figure", "picture", "equation"):
                 try:
@@ -269,9 +270,7 @@ class IngestionOrchestrator:
                         f"{chunk.text[:2000]}"
                     )
                     summary = await call_reasoning_llm(
-                        messages=[{"role": "user", "content": summary_prompt}],
-                        temperature=0.2,
-                        max_tokens=256
+                        messages=[{"role": "user", "content": summary_prompt}], temperature=0.2, max_tokens=256
                     )
                     chunk.text = f"[Visual Layout Summary: {summary.strip()}]\n\n{chunk.text}"
                 except Exception as ex:

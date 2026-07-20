@@ -59,7 +59,12 @@ class MockToolkit:
                 paper_id="paper_ssm_uuid",
                 section_title="State Space Models vs Attention",
                 chunk_type="body",
-                text="State Space Models (SSMs) like Mamba scale linearly O(N) with sequence length, whereas Transformers using standard self-attention scale quadratically O(N^2) in sequence length. However, standard SSMs often struggle with factual recall tasks.",
+                text=(
+                    "State Space Models (SSMs) like Mamba scale linearly O(N) with sequence "
+                    "length, whereas Transformers using standard self-attention scale "
+                    "quadratically O(N^2) in sequence length. However, standard SSMs often "
+                    "struggle with factual recall tasks."
+                ),
                 title="Mamba: Linear-Time Sequence Modeling with Selective State Spaces",
                 authors=["Albert Gu", "Tri Dao"],
                 abstract="Selective State Space Models perform highly efficiently on sequence modeling.",
@@ -73,7 +78,12 @@ class MockToolkit:
                 paper_id="paper_rrf_uuid",
                 section_title="Reciprocal Rank Fusion",
                 chunk_type="body",
-                text="Reciprocal Rank Fusion (RRF) scores each document d in a set of result lists D by summing the reciprocal of its rank r_m(d) in each list: RRF_score(d) = sum(1 / (k + r_m(d))), where k is a constant parameter (usually set to 60).",
+                text=(
+                    "Reciprocal Rank Fusion (RRF) scores each document d in a set of result "
+                    "lists D by summing the reciprocal of its rank r_m(d) in each list: "
+                    "RRF_score(d) = sum(1 / (k + r_m(d))), where k is a constant parameter "
+                    "(usually set to 60)."
+                ),
                 title="Reciprocal Rank Fusion Outperforms Condorcet and Individual Retrieval Methods",
                 authors=["Gordon V. Cormack", "Charles L. A. Clarke"],
                 abstract="A simple fusion method RRF works robustly.",
