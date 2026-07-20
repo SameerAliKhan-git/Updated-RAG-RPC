@@ -112,3 +112,23 @@ filterwarnings = [
 python_version = "3.12"
 explicit_package_bases = true
 ignore_missing_imports = true
+
+# The models use SQLAlchemy's legacy Column() style, so without the (now
+# deprecated) SQLAlchemy mypy plugin, ORM attribute writes read as
+# `Column[T] = T` assignment errors — false positives, not real type bugs.
+# Scope the suppression to the ORM-write-heavy modules. Long-term fix is
+# migrating the models to 2.0 Mapped[...] annotations.
+[[tool.mypy.overrides]]
+module = ["src.ingestion.orchestrator", "src.routers.sessions"]
+disable_error_code = ["assignment"]
+
+# python-telegram-bot types Update.message as Optional, but command handlers
+# are only ever invoked with a message present. Opt-in module.
+[[tool.mypy.overrides]]
+module = ["src.clients.telegram_bot"]
+disable_error_code = ["union-attr"]
+
+# Test double for the Playwright E2E suite — not shipped in the app.
+[[tool.mypy.overrides]]
+module = ["src.run_mock_api"]
+disable_error_code = ["var-annotated", "attr-defined", "arg-type"]

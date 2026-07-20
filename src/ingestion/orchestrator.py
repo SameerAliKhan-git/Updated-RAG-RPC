@@ -45,9 +45,10 @@ class IngestionOrchestrator:
         specific_arxiv_id: str | None = None,
     ) -> dict[str, Any]:
         """Fetch papers, parse them with Docling, chunk, embed, and index into DB + OpenSearch."""
-        stats = {
+        stats: dict[str, Any] = {
             "fetched": 0,
             "parsed": 0,
+            "parse_failed": 0,
             "chunks_created": 0,
             "chunks_indexed": 0,
             "errors": 0,
@@ -84,6 +85,12 @@ class IngestionOrchestrator:
         # Clean up Jina client connections
         await self.embeddings_client.close()
         await self.source.close()
+
+        if stats.get("parse_failed"):
+            logger.warning(
+                f"Ingestion finished with {stats['parse_failed']} unparseable PDF(s) "
+                f"(stored as metadata-only, NOT searchable): {stats.get('parse_failed_ids', [])}"
+            )
 
         return stats
 
@@ -221,9 +228,12 @@ class IngestionOrchestrator:
             parsed_doc = self.parser.parse(pdf_path)
             stats["parsed"] += 1
         except Exception as e:
+            # Store basic arXiv metadata anyway (pdf_processed=False), but make the
+            # failure visible: count it and record which papers are non-searchable
+            # so callers/DAGs can surface it instead of it vanishing into logs.
             logger.error(f"Docling parsing failed for PDF {pdf_path}: {e}")
-            # If docling fails, we store basic arXiv metadata anyway, but set pdf_processed=False
-            pass
+            stats["parse_failed"] = stats.get("parse_failed", 0) + 1
+            stats.setdefault("parse_failed_ids", []).append(paper.paper_id)
 
         # 4. Save/Update Paper metadata in Postgres System of Record
         if not existing_paper:

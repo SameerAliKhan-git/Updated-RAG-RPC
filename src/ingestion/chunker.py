@@ -124,7 +124,7 @@ class StructureAwareChunker:
                 chunk_idx += 1
 
                 # Keep sentences that fit inside overlap window
-                overlap_sentences = []
+                overlap_sentences: list[str] = []
                 overlap_words = 0
                 for s in reversed(current_sentences):
                     s_words = len(s.split())

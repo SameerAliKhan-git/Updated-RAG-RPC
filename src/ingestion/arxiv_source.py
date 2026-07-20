@@ -206,7 +206,7 @@ class ArxivPaperSource(PaperSource):
             pdf_url = ""
             for link_elem in entry.findall("atom:link", self.NAMESPACES):
                 if link_elem.get("title") == "pdf" or link_elem.get("type") == "application/pdf":
-                    pdf_url = link_elem.get("href")
+                    pdf_url = link_elem.get("href") or ""
                     if pdf_url:
                         if pdf_url.startswith("http://arxiv.org/"):
                             pdf_url = pdf_url.replace("http://arxiv.org/", "https://arxiv.org/")

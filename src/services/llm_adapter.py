@@ -131,9 +131,9 @@ async def _ollama_fallback(
             temperature=temperature,
             num_predict=max_tokens,
         )
-        from langchain_core.messages import HumanMessage, SystemMessage
+        from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-        lc_messages = []
+        lc_messages: list[BaseMessage] = []
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
@@ -143,8 +143,8 @@ async def _ollama_fallback(
                 lc_messages.append(HumanMessage(content=content))
 
         response = await llm.ainvoke(lc_messages)
-        content = response.content if hasattr(response, "content") else response
-        return _strip_think(content if isinstance(content, str) else str(content))
+        raw = response.content if hasattr(response, "content") else response
+        return _strip_think(raw if isinstance(raw, str) else str(raw))
 
     except Exception as e:
         logger.error(f"Ollama fallback also failed: {e}")

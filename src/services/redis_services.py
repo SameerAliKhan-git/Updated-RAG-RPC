@@ -188,10 +188,12 @@ class RedisServicesManager:
                     database=self.settings.redis.db,
                 )
             )
-            # Enqueue job to arq worker queue
+            # Enqueue job to arq worker queue. enqueue_job returns None when the
+            # job is deduplicated (already queued) — guard before touching .job_id.
             job = await arq_redis.enqueue_job("ingest_single_paper_task", arxiv_id)
             await arq_redis.close()
-            logger.info(f"Arq: Enqueued job {job.job_id} for paper {arxiv_id}")
+            job_id = job.job_id if job is not None else "(deduplicated)"
+            logger.info(f"Arq: Enqueued job {job_id} for paper {arxiv_id}")
             return True
         except ImportError:
             # Fallback to direct Redis list if arq is not installed/imported
@@ -205,7 +207,9 @@ class RedisServicesManager:
         """Fallback task list push if arq pool initialization fails."""
         try:
             task_data = json.dumps({"arxiv_id": arxiv_id, "priority": "high", "timestamp": time.time()})
-            await self.redis.lpush("corpus:ingestion:queue", task_data)
+            # redis-py's lpush is typed as sync|async in the stubs; our client is
+            # async so this is awaitable at runtime.
+            await self.redis.lpush("corpus:ingestion:queue", task_data)  # type: ignore[misc]
             logger.info(f"Fallback List Queue: Pushed {arxiv_id} to queue list.")
             return True
         except Exception as e:

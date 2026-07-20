@@ -125,6 +125,7 @@ class DoclingParserService:
         self.warm_up()
 
         logger.info(f"Parsing PDF layout via Docling: {pdf_path}")
+        assert self._converter is not None  # warm_up() guarantees this
         result = self._converter.convert(str(pdf_path))
         doc = result.document
 
@@ -281,6 +282,7 @@ class DoclingParserService:
         self.warm_up()
 
         logger.info(f"Extracting metadata from PDF: {pdf_path}")
+        assert self._converter is not None  # warm_up() guarantees this
         result = self._converter.convert(str(pdf_path))
         doc = result.document
 

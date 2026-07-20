@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from fastapi import Request
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
@@ -9,7 +11,7 @@ from sqlalchemy.orm import Session
 from src.config import Settings, get_settings
 
 
-def get_db_session(request: Request) -> Session:
+def get_db_session(request: Request) -> Iterator[Session]:
     """Yield a SQLAlchemy session from the app's session factory."""
     session_factory = request.app.state.db_session_factory
     session = session_factory()

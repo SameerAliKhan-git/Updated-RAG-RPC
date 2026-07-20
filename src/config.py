@@ -192,6 +192,13 @@ class Settings(BaseSettings):
     model_autoselect: bool = Field(default=False, alias="MODEL_AUTOSELECT")
     model_ladder: str = Field(default="llama3.2:3b,llama3.2:1b", alias="MODEL_LADDER")
     zotero_local_url: str = Field(default="http://host.docker.internal:23119", alias="ZOTERO__LOCAL_URL")
+    # Comma-separated allowed CORS origins for browser clients on a different
+    # origin than the API. The default same-origin nginx deployment doesn't need
+    # any. "*" disables credentialed CORS (wildcard + credentials is spec-invalid).
+    cors_allow_origins: str = Field(
+        default="http://localhost:7860,http://localhost:5173,http://localhost:5174",
+        alias="CORS_ALLOW_ORIGINS",
+    )
 
     # Sub-settings (loaded from env as well)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)

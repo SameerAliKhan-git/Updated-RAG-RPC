@@ -171,10 +171,17 @@ def create_app() -> FastAPI:
         )
 
     # ── CORS ──
+    # Wildcard + credentials is rejected by browsers (spec-invalid), and the old
+    # prod branch of [] blocked every cross-origin client. Use an explicit
+    # allow-list from CORS_ALLOW_ORIGINS; only enable credentials when the list
+    # is explicit (not "*"). The default same-origin nginx deployment needs none
+    # of this, but external browser clients now work when configured.
+    cors_origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
+    allow_all = cors_origins == ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.debug else [],
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=not allow_all,
         allow_methods=["*"],
         allow_headers=["*"],
     )

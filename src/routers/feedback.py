@@ -6,8 +6,7 @@ which can be stored in the SoR database and linked back to Langfuse traces.
 
 from __future__ import annotations
 
-import logging
-
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -16,7 +15,11 @@ from src.middleware.auth import verify_api_key
 from src.models.paper import Feedback
 from src.schemas.ask import FeedbackRequest
 
-logger = logging.getLogger(__name__)
+# structlog (not stdlib logging): the success path logs with bound kwargs
+# (query_id=, rating=, trace_id=), which stdlib Logger.info rejects with a
+# TypeError — that previously crashed the endpoint into a 500 *after* the
+# feedback had already been committed.
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(
     tags=["feedback"],
