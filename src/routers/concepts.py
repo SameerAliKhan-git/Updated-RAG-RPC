@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy import func
 
 from src.dependencies import get_db_session
 from src.middleware.auth import verify_api_key
+from src.middleware.rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,7 @@ async def concept_graph(
     )
     node_ids = {node.id for node, _ in rows}
 
-    edges = (
-        db.query(ConceptEdge)
-        .filter(ConceptEdge.source_id.in_(node_ids), ConceptEdge.target_id.in_(node_ids))
-        .all()
-    )
+    edges = db.query(ConceptEdge).filter(ConceptEdge.source_id.in_(node_ids), ConceptEdge.target_id.in_(node_ids)).all()
 
     return {
         "nodes": [
@@ -68,6 +65,34 @@ async def concept_graph(
     }
 
 
+@router.post(
+    "/concepts/build",
+    summary="Build the concept graph now, without waiting for the nightly Airflow DAG",
+    dependencies=[Depends(rate_limiter)],
+)
+async def trigger_concept_build(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    limit: int = 200,
+):
+    from src.services.concept_extractor import get_build_status, run_concept_graph_job
+
+    current = await get_build_status(request.app.state.redis)
+    if current.get("status") == "running":
+        return {"status": "already_running", **current}
+
+    background_tasks.add_task(run_concept_graph_job, request.app.state.redis, limit)
+    logger.info(f"Concept graph on-demand build started (limit={limit})")
+    return {"status": "started"}
+
+
+@router.get("/concepts/build/status", summary="Status of the on-demand concept-graph build")
+async def concept_build_status(request: Request):
+    from src.services.concept_extractor import get_build_status
+
+    return await get_build_status(request.app.state.redis)
+
+
 @router.get("/concepts/{concept_name}/papers", summary="Papers mentioning a concept")
 async def concept_papers(
     concept_name: str,
@@ -75,11 +100,7 @@ async def concept_papers(
 ):
     from src.models.paper import ConceptMention, ConceptNode, Paper
 
-    node = (
-        db.query(ConceptNode)
-        .filter(ConceptNode.canonical_name == concept_name.strip().lower())
-        .first()
-    ) or (
+    node = (db.query(ConceptNode).filter(ConceptNode.canonical_name == concept_name.strip().lower()).first()) or (
         db.query(ConceptNode).filter(ConceptNode.name.ilike(f"%{concept_name}%")).first()
     )
     if not node:

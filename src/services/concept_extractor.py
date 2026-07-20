@@ -1,4 +1,5 @@
-"""Corpus — offline concept-graph extraction (run nightly via Airflow).
+"""Corpus — offline concept-graph extraction (run nightly via Airflow, or
+on demand via POST /concepts/build for stacks without the airflow profile).
 
 One fast-LLM call per unprocessed paper over title + abstract + section titles.
 Entities are canonicalized by normalized-name match first, then bge-m3
@@ -8,13 +9,18 @@ Every embedding-merge is logged for auditing.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from src.agents.prompts import CONCEPT_EXTRACTION_PROMPT
 from src.services.llm_adapter import call_fast_llm, parse_json_response
 
 logger = logging.getLogger(__name__)
+
+BUILD_STATUS_KEY = "corpus:concept_build:status"
+BUILD_STATUS_TTL = 60 * 60 * 6  # 6h — long enough to see the result, short enough not to linger
 
 ALLOWED_TYPES = {"method", "dataset", "task", "metric"}
 ALLOWED_RELATIONS = {"uses", "improves_on", "evaluated_on", "compares_to"}
@@ -33,9 +39,7 @@ async def _canonicalize(db, name: str, concept_type: str, embedder):
     normalized = _normalize(name)
 
     node = (
-        db.query(ConceptNode)
-        .filter(ConceptNode.canonical_name == normalized, ConceptNode.type == concept_type)
-        .first()
+        db.query(ConceptNode).filter(ConceptNode.canonical_name == normalized, ConceptNode.type == concept_type).first()
     )
     if node:
         return node
@@ -76,15 +80,10 @@ async def _canonicalize(db, name: str, concept_type: str, embedder):
 
 async def extract_concepts_for_paper(db, paper, embedder) -> dict:
     """Extract and persist concepts + relations for one paper. Returns stats."""
-    from src.models.paper import Chunk, ConceptEdge, ConceptMention
+    from src.models.paper import Chunk, ConceptEdge, ConceptMention, ConceptNode
 
     section_titles = [
-        row[0]
-        for row in db.query(Chunk.section_title)
-        .filter(Chunk.paper_id == paper.id)
-        .distinct()
-        .limit(15)
-        .all()
+        row[0] for row in db.query(Chunk.section_title).filter(Chunk.paper_id == paper.id).distinct().limit(15).all()
     ]
 
     prompt = CONCEPT_EXTRACTION_PROMPT.format(
@@ -92,9 +91,7 @@ async def extract_concepts_for_paper(db, paper, embedder) -> dict:
         abstract=(paper.abstract or "")[:1500],
         sections=", ".join(section_titles[:15]),
     )
-    response = await call_fast_llm(
-        messages=[{"role": "user", "content": prompt}], temperature=0.0, max_tokens=512
-    )
+    response = await call_fast_llm(messages=[{"role": "user", "content": prompt}], temperature=0.0, max_tokens=512)
     parsed = parse_json_response(response)
 
     entities = [
@@ -104,7 +101,7 @@ async def extract_concepts_for_paper(db, paper, embedder) -> dict:
     ]
     entity_names = {_normalize(e["name"]) for e in entities}
 
-    nodes: dict[str, object] = {}
+    nodes: dict[str, ConceptNode] = {}
     for entity in entities:
         node = await _canonicalize(db, entity["name"], entity["type"], embedder)
         nodes[_normalize(entity["name"])] = node
@@ -191,6 +188,41 @@ async def build_concept_graph(limit: int = 50) -> dict:
         await embedder.close()
         db.close()
         engine.dispose()
+
+
+async def get_build_status(redis) -> dict[str, Any]:
+    """Current/last status of the on-demand concept-graph build, for the Galaxy
+    empty-state UI to poll. Returns {"status": "idle"} if never run."""
+    raw = await redis.get(BUILD_STATUS_KEY)
+    if raw is None:
+        return {"status": "idle"}
+    return json.loads(raw)
+
+
+async def run_concept_graph_job(redis, limit: int = 200) -> None:
+    """Background-task entry point for POST /concepts/build — runs
+    build_concept_graph() and records progress/result in Redis so the
+    frontend can poll without waiting on Airflow's nightly schedule."""
+    started_at = datetime.now(UTC).isoformat()
+    await redis.set(
+        BUILD_STATUS_KEY,
+        json.dumps({"status": "running", "started_at": started_at}),
+        ex=BUILD_STATUS_TTL,
+    )
+    try:
+        stats = await build_concept_graph(limit=limit)
+        await redis.set(
+            BUILD_STATUS_KEY,
+            json.dumps({"status": "done", "started_at": started_at, "stats": stats}),
+            ex=BUILD_STATUS_TTL,
+        )
+    except Exception as e:
+        logger.error(f"Concept graph on-demand build failed: {e}")
+        await redis.set(
+            BUILD_STATUS_KEY,
+            json.dumps({"status": "error", "started_at": started_at, "error": str(e)}),
+            ex=BUILD_STATUS_TTL,
+        )
 
 
 if __name__ == "__main__":

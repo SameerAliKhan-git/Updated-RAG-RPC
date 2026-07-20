@@ -3,6 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../api/client";
 
+interface BuildStatus {
+  status: "idle" | "running" | "done" | "error" | "already_running";
+  stats?: { papers: number; entities: number; edges: number; errors: number };
+  error?: string;
+}
+
 interface GraphNode {
   id: string;
   name: string;
@@ -102,7 +108,34 @@ function useForceLayout(nodes: GraphNode[], edges: GraphEdge[]) {
 export function GalaxyView() {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState<GraphNode | null>(null);
-  const { data, isLoading, error } = useQuery({ queryKey: ["conceptGraph"], queryFn: fetchGraph });
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ["conceptGraph"], queryFn: fetchGraph });
+
+  const [build, setBuild] = useState<BuildStatus | null>(null);
+  const pollRef = useRef<number>(0);
+
+  const startBuild = async () => {
+    const res = await fetch(`${API_BASE}/concepts/build`, { method: "POST" });
+    if (!res.ok) return;
+    setBuild((await res.json()) as BuildStatus);
+  };
+
+  useEffect(() => {
+    if (!build || build.status === "done" || build.status === "error") return;
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/concepts/build/status`);
+        if (!res.ok) return;
+        const next = (await res.json()) as BuildStatus;
+        setBuild(next);
+        if (next.status === "done") void refetch();
+      } catch {
+        // transient poll failure — keep trying
+      }
+    }, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [build?.status, refetch]);
+
+  const building = build && (build.status === "running" || build.status === "already_running");
 
   const nodes = useMemo(() => data?.nodes ?? [], [data]);
   const edges = useMemo(() => data?.edges ?? [], [data]);
@@ -140,10 +173,32 @@ export function GalaxyView() {
           </p>
         )}
         {data && nodes.length === 0 && (
-          <p className="p-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
-            No concepts extracted yet — the nightly graph builder populates this after papers are ingested.
-            Run it manually: <code>docker compose --profile airflow up -d airflow</code>
-          </p>
+          <div className="flex flex-col items-center gap-3 p-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
+            <p>
+              No concepts extracted yet. This populates from the nightly Airflow graph builder — or
+              build it now without waiting for the schedule or the airflow profile.
+            </p>
+            {build?.status === "error" && (
+              <p style={{ color: "var(--g-red)" }}>Build failed: {build.error ?? "unknown error"}</p>
+            )}
+            {build?.status === "done" && build.stats && (
+              <p style={{ color: "var(--text-secondary)" }}>
+                Processed {build.stats.papers} paper{build.stats.papers === 1 ? "" : "s"}, found{" "}
+                {build.stats.entities} concepts — reloading…
+              </p>
+            )}
+            <button
+              onClick={() => void startBuild()}
+              disabled={!!building}
+              className="rounded-full px-5 py-2 text-sm font-medium text-white disabled:opacity-40"
+              style={{ background: "var(--gradient-gemini-solid)" }}
+            >
+              {building ? "Building…" : "Build now"}
+            </button>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Needs papers already ingested. One fast-LLM call per paper — may take a few minutes on CPU.
+            </p>
+          </div>
         )}
         {nodes.length > 0 && (
           <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full">
