@@ -14,9 +14,8 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_HTTP_TIMEOUT=300
 
 RUN uv sync --frozen --no-dev || uv sync --no-dev
 
-# Copy application source and static assets
+# Copy application source
 COPY src /app/src
-COPY static /app/static
 
 
 # Stage 2: Slim runtime image

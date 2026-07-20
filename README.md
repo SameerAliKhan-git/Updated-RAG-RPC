@@ -26,7 +26,7 @@ The UI follows the **Google Gemini design language** — light/dark themes, the 
 flowchart TB
     subgraph Clients
         UI["React + Vite SPA<br/>(Gemini design, port 7860)"]
-        TG["Telegram Bot"]
+        TG["Telegram Bot<br/>(opt-in, profile: telegram)"]
     end
 
     subgraph API["FastAPI (port 8000)"]
@@ -138,6 +138,7 @@ docker exec corpus-api python -m src.run_ingest
 ```powershell
 docker compose --profile observability up -d   # Prometheus, Grafana, Langfuse
 docker compose --profile airflow up -d          # scheduled DAGs (ingestion, eval, concepts, training)
+docker compose --profile telegram up -d         # Telegram bot (needs TELEGRAM__BOT_TOKEN in .env)
 ```
 
 ---

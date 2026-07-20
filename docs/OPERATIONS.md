@@ -16,6 +16,7 @@ ollama list                                    # sanity: models present
 docker compose up -d                           # lean stack (6 containers)
 docker compose --profile observability up -d   # + Prometheus/Grafana/Langfuse
 docker compose --profile airflow up -d         # + scheduled DAGs
+docker compose --profile telegram up -d        # + Telegram bot (needs TELEGRAM__BOT_TOKEN in .env)
 docker compose down                            # stop (add --remove-orphans after profile changes)
 ```
 

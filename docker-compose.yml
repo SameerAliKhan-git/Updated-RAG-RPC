@@ -454,6 +454,25 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  # ── Optional: Telegram bot (secondary chat surface) ────
+  telegram-bot:
+    profiles: ["telegram"]
+    build: .
+    container_name: corpus-telegram-bot
+    command: python -m src.clients.telegram_bot
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - CORPUS_API_URL=http://api:8000
+    volumes:
+      - ./src:/app/src
+    networks:
+      - corpus-network
+    restart: unless-stopped
+
   prometheus:
     profiles: ["observability"]
     image: prom/prometheus:v2.51.0
