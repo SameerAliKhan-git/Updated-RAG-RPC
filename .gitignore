@@ -64,3 +64,4 @@ backups/
 test-results/
 models/reranker-tuned/
 data/audio/
+*.tsbuildinfo
