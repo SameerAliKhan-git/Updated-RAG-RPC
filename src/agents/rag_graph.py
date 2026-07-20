@@ -469,7 +469,7 @@ async def build_context(state: AgentState) -> AgentState:
 
     # Parent-Child Semantic Expansion: Expand child chunks to parent section text
     toolkit = state.get("toolkit")
-    if toolkit and toolkit.db_session:
+    if toolkit and getattr(toolkit, "db_session", None):
         from src.models.paper import Chunk as DBChunk
         for chunk in reranked:
             try:

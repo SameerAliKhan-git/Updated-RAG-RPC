@@ -41,6 +41,7 @@ class MockToolkit:
 
     def __init__(self):
         self.redis = None
+        self.db_session = None
 
     async def hybrid_search(
         self,
