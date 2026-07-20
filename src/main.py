@@ -194,6 +194,12 @@ def create_app() -> FastAPI:
     app.add_middleware(MetricsMiddleware)
     app.mount("/metrics", make_asgi_app())
 
+    # ── Request correlation IDs (added last → runs first, so every log
+    # line, including metrics, carries the request_id) ──
+    from src.middleware.request_id import RequestIDMiddleware
+
+    app.add_middleware(RequestIDMiddleware)
+
     # ── Routers ──
     from src.routers.ask import router as ask_router
     from src.routers.collections import router as collections_router

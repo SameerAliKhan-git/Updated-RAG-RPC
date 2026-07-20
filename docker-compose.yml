@@ -121,6 +121,9 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # Hard cap above redis's own 256mb maxmemory, leaving headroom for the AOF
+    # buffer — bounded and safe (unlike the model-loading services).
+    mem_limit: 384m
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -424,6 +427,14 @@ services:
           ls -1t /backups/corpus_*.dump 2>/dev/null | tail -n +15 | xargs -r rm --
           sleep 86400
         done
+    # Verifies the backup sidecar can still reach Postgres (its only job).
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -h postgres -U rag_user -d corpus_db" ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 128m
     depends_on:
       postgres:
         condition: service_healthy
@@ -435,6 +446,14 @@ services:
     build: .
     container_name: corpus-arq-worker
     command: arq src.services.arq_worker.WorkerSettings
+    # arq's built-in --check reads the worker's health record from Redis and
+    # exits 0 only if the worker is alive and recently ran its health loop.
+    healthcheck:
+      test: [ "CMD-SHELL", "arq src.services.arq_worker.WorkerSettings --check" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -458,6 +477,10 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    # NOTE: api and arq-worker are intentionally NOT given hard mem_limits.
+    # They load ML models (bge-m3 embeddings ~2GB, cross-encoder reranker), and a
+    # hard cap risks an OOM-kill mid-load on this RAM-constrained host. The real
+    # memory governor is the WSL VM cap in ~/.wslconfig (memory=7GB).
 
   # ── Optional: Telegram bot (secondary chat surface) ────
   telegram-bot:

@@ -439,6 +439,41 @@ async def admit_gap(state: AgentState) -> AgentState:
     }
 
 
+def _dedup_chunks(chunks: list[Any], threshold: float = 0.85) -> list[Any]:
+    """Drop near-duplicate chunks by word-shingle Jaccard similarity.
+
+    Hybrid search + live arXiv fallback frequently surface the same passage
+    twice (e.g. a paper's own abstract and its intro restating it), which
+    otherwise crowds the citation context with redundant text. Order-preserving:
+    keeps the first occurrence (already the higher-ranked one).
+    """
+
+    def shingles(text: str) -> set[str]:
+        return set((text or "").lower().split())
+
+    kept: list[Any] = []
+    kept_sets: list[set[str]] = []
+    for chunk in chunks:
+        toks = shingles(getattr(chunk, "text", ""))
+        if not toks:
+            kept.append(chunk)
+            kept_sets.append(toks)
+            continue
+        is_dup = False
+        for prev in kept_sets:
+            if not prev:
+                continue
+            overlap = len(toks & prev)
+            union = len(toks | prev)
+            if union and overlap / union >= threshold:
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(chunk)
+            kept_sets.append(toks)
+    return kept
+
+
 @trace_node("rerank")
 async def rerank_node(state: AgentState) -> AgentState:
     """Node 9: Cross-encoder reranking of relevant chunks."""
@@ -449,12 +484,18 @@ async def rerank_node(state: AgentState) -> AgentState:
     if not relevant:
         return {**state, "reranked_chunks": []}
 
-    _emit(state, f"reranking {len(relevant)} chunks...")
+    # Drop near-duplicate passages before reranking so top_k is chosen over
+    # unique content and the reranker isn't spent scoring redundant text.
+    deduped = _dedup_chunks(relevant)
+    if len(deduped) < len(relevant):
+        _emit(state, f"removed {len(relevant) - len(deduped)} duplicate chunks")
+
+    _emit(state, f"reranking {len(deduped)} chunks...")
 
     if toolkit:
-        reranked = await toolkit.rerank_chunks(query, relevant, top_k=4)
+        reranked = await toolkit.rerank_chunks(query, deduped, top_k=4)
     else:
-        reranked = relevant[:4]
+        reranked = deduped[:4]
 
     _emit(state, f"top {len(reranked)} chunks after reranking")
 
