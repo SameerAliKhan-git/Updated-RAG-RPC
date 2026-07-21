@@ -1,7 +1,7 @@
 # Corpus — Agentic Research Paper Curator
 
 <p align="center">
-  <img src="docs/images/hero.webp" alt="Corpus — ask your papers anything, cited to the exact page, every time. Research papers dissolve into a flowing gradient that resolves into a cited chat answer." width="100%">
+  <img src="docs/images/hero-dark.webp" alt="Corpus — ask your papers anything, cited to the exact page, every time. Research papers dissolve into a flowing gradient that resolves into a cited chat answer." width="100%">
 </p>
 
 > *Ask your papers anything — cited to the exact page, every time.*
@@ -15,7 +15,7 @@ The UI follows the **Google Gemini design language** — light/dark themes, the 
 Every sentence Corpus generates carries an inline `[N]` that resolves to the exact section and page of the source PDF, with the supporting passage highlighted. Citations the source doesn't actually support are stripped before you ever see them.
 
 <p align="center">
-  <img src="docs/images/trust-chain.webp" alt="From Claim to Page: an answer's [2] citation chip links to a citation card (paper title, section, page 7), to the highlighted passage in the source PDF, to a verification badge reading 'claim supported by source' — unsupported citations are stripped, not shown." width="100%">
+  <img src="docs/images/trust-chain-dark.webp" alt="From Claim to Page: an answer's [2] citation chip links to a citation card (paper title, section, page 7), to the highlighted passage in the source PDF, to a verification badge reading 'claim supported by source' — unsupported citations are stripped, not shown." width="100%">
 </p>
 
 ---
@@ -35,7 +35,7 @@ Every sentence Corpus generates carries an inline `[N]` that resolves to the exa
 ## System Architecture
 
 <p align="center">
-  <img src="docs/images/architecture.webp" alt="Corpus architecture in six layers: Clients (React SPA, Telegram bot) → FastAPI → the LangGraph agentic pipeline (route, plan, retrieve, CRAG grade, rerank, build context, generate, verify citations, with rewrite-query and live-arXiv fallbacks) → local models (Ollama, MiniLM reranker, Piper TTS) → data stores (PostgreSQL, OpenSearch, Redis, PDF cache) → opt-in Airflow offline pipelines." width="100%">
+  <img src="docs/images/architecture-dark.webp" alt="Corpus architecture in six layers: Clients (React SPA, Telegram bot) → FastAPI → the LangGraph agentic pipeline (route, plan, retrieve, CRAG grade, rerank, build context, generate, verify citations, with rewrite-query and live-arXiv fallbacks) → local models (Ollama, MiniLM reranker, Piper TTS) → data stores (PostgreSQL, OpenSearch, Redis, PDF cache) → opt-in Airflow offline pipelines." width="100%">
 </p>
 
 <details>
@@ -100,13 +100,13 @@ flowchart TB
 The pipeline doesn't just retrieve-then-answer. When retrieval comes back thin it **rewrites the query and retries**; when the local corpus is exhausted it falls back to a **live arXiv lookup**; when a generated citation isn't supported it's **stripped and re-verified**; and when the corpus genuinely lacks coverage it **admits the gap instead of guessing**.
 
 <p align="center">
-  <img src="docs/images/agentic-loop.webp" alt="Agentic RAG pipeline with self-correction: the happy path route → plan → retrieve → grade → rerank → build context → generate → verify citations → finalize, with correction loops — insufficient chunks rewrite the query, exhausted retries trigger a live arXiv lookup, unsupported citations are stripped and re-verified, and genuinely missing coverage yields an honest gap admission." width="100%">
+  <img src="docs/images/agentic-loop-dark.webp" alt="Agentic RAG pipeline with self-correction: the happy path route → plan → retrieve → grade → rerank → build context → generate → verify citations → finalize, with correction loops — insufficient chunks rewrite the query, exhausted retries trigger a live arXiv lookup, unsupported citations are stripped and re-verified, and genuinely missing coverage yields an honest gap admission." width="100%">
 </p>
 
 ## End-to-End: What Happens When You Ask a Question
 
 <p align="center">
-  <img src="docs/images/sequence-flow.webp" alt="Sequence diagram of a question: browser POSTs to nginx which proxies to FastAPI (SSE, buffering off); FastAPI sanitizes and checks the semantic cache, then calls the LangGraph pipeline, which streams a router trace, runs hybrid BM25+KNN search on OpenSearch, grades chunks on Ollama, reranks and builds cited context, streams generation tokens live, verifies citations, and streams citation and done events; clicking [N] opens the PDF at the cited page with the passage highlighted." width="100%">
+  <img src="docs/images/sequence-flow-dark.webp" alt="Sequence diagram of a question: browser POSTs to nginx which proxies to FastAPI (SSE, buffering off); FastAPI sanitizes and checks the semantic cache, then calls the LangGraph pipeline, which streams a router trace, runs hybrid BM25+KNN search on OpenSearch, grades chunks on Ollama, reranks and builds cited context, streams generation tokens live, verifies citations, and streams citation and done events; clicking [N] opens the PDF at the cited page with the passage highlighted." width="100%">
 </p>
 
 <details>
@@ -146,7 +146,7 @@ sequenceDiagram
 Whether a paper arrives from the daily arXiv DAG or a manual PDF upload, it flows through the same layout-aware pipeline — and the **page number is preserved end to end** so every future citation can point at the exact page.
 
 <p align="center">
-  <img src="docs/images/ingestion.webp" alt="Ingestion path: arXiv fetch or PDF upload → Docling layout-aware parse (sections, tables, figures, equations, page numbers) → structure-aware chunking (~500 words, atomic visual blocks) → visual-summary LLM pass → bge-m3 embeddings via Ollama (1024-dim) → dual-write to PostgreSQL (source of truth) and OpenSearch (search index), with the page number preserved throughout." width="100%">
+  <img src="docs/images/ingestion-dark.webp" alt="Ingestion path: arXiv fetch or PDF upload → Docling layout-aware parse (sections, tables, figures, equations, page numbers) → structure-aware chunking (~500 words, atomic visual blocks) → visual-summary LLM pass → bge-m3 embeddings via Ollama (1024-dim) → dual-write to PostgreSQL (source of truth) and OpenSearch (search index), with the page number preserved throughout." width="100%">
 </p>
 
 ## Hybrid Retrieval — BM25 + Vector, Fused
@@ -154,7 +154,7 @@ Whether a paper arrives from the daily arXiv DAG or a manual PDF upload, it flow
 Every query runs **both** a BM25 keyword search and a KNN vector search (bge-m3), and the two rankings are merged with **Reciprocal Rank Fusion** — so a passage that keyword search ranks low but vector search ranks high still survives into the context. A cross-encoder reranker then does the final precise scoring down to the top 4 cited chunks.
 
 <p align="center">
-  <img src="docs/images/hybrid-retrieval.webp" alt="Hybrid retrieval: a query fans out to BM25 keyword search and KNN vector search (bge-m3, 1024-dim), each producing a ranked list; a document ranked 5th by keywords but 2nd by vectors survives Reciprocal Rank Fusion into the fused top results, which feed a MiniLM cross-encoder reranker that outputs the top 4 chunks injected into the generation prompt." width="100%">
+  <img src="docs/images/hybrid-retrieval-dark.webp" alt="Hybrid retrieval: a query fans out to BM25 keyword search and KNN vector search (bge-m3, 1024-dim), each producing a ranked list; a document ranked 5th by keywords but 2nd by vectors survives Reciprocal Rank Fusion into the fused top results, which feed a MiniLM cross-encoder reranker that outputs the top 4 chunks injected into the generation prompt." width="100%">
 </p>
 
 <p align="center"><sub><i>Document titles and scores above are illustrative.</i></sub></p>
@@ -164,7 +164,7 @@ Every query runs **both** a BM25 keyword search and a KNN vector search (bge-m3)
 Corpus gets better the more it's used. Thumbs feedback is stored with the cited passages, monthly fine-tuning trains a candidate reranker, and an **eval gate only promotes it if it beats the current model** on a held-out set — while nightly golden-set evaluation tracks faithfulness, relevancy, and hit@k/MRR over time.
 
 <p align="center">
-  <img src="docs/images/flywheel.webp" alt="Quality flywheel: users rate answers → feedback stored with cited passages → monthly reranker fine-tuning (needs ≥50 rated answers) → eval gate comparing held-out AUC against the base model; a pass auto-promotes the model to production for better answers, a fail keeps collecting; a side branch runs nightly golden-set RAGAS evaluation tracking faithfulness, relevancy, and hit@k/MRR over time." width="100%">
+  <img src="docs/images/flywheel-dark.webp" alt="Quality flywheel: users rate answers → feedback stored with cited passages → monthly reranker fine-tuning (needs ≥50 rated answers) → eval gate comparing held-out AUC against the base model; a pass auto-promotes the model to production for better answers, a fail keeps collecting; a side branch runs nightly golden-set RAGAS evaluation tracking faithfulness, relevancy, and hit@k/MRR over time." width="100%">
 </p>
 
 ---
