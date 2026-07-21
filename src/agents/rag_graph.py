@@ -615,6 +615,13 @@ async def generate(state: AgentState) -> AgentState:
             async for token in stream_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens):
                 parts.append(token)
                 _emit_live(state, {"type": "token", "text": token})
+                # Once the model starts a bibliography section, everything after
+                # it is fabricated and gets stripped in verify_citations anyway.
+                # Stop here so the user never watches invented references stream
+                # in and then disappear — and so we don't burn CPU generating them.
+                if "\n" in token and _REF_HEADING_RE.search("".join(parts)):
+                    logger.info("Halting generation at model-started References section")
+                    break
             answer = "".join(parts)
         else:
             answer = await call_drafting_llm(messages, temperature=0.3, max_tokens=max_tokens)
@@ -630,6 +637,40 @@ async def generate(state: AgentState) -> AgentState:
     _emit(state, "answer generated")
 
     return {**state, "answer_markdown": answer}
+
+
+# A standalone bibliography heading: "## References", "**References**",
+# "References:", "Bibliography", "Works Cited", "Sources". Anchored to a whole
+# line so a mid-sentence mention of the word never matches.
+_REF_HEADING_RE = re.compile(
+    r"^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*|__)?[ \t]*"
+    r"(?:references?|bibliography|works\s+cited|sources?|citations?)"
+    r"[ \t]*:?[ \t]*(?:\*\*|__)?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _strip_fabricated_references(answer: str) -> tuple[str, bool]:
+    """Remove a trailing References/Bibliography section from a generated answer.
+
+    GENERATOR_SYSTEM_PROMPT rule 7 forbids these because the UI renders the real
+    bibliography from citation metadata — but small local models ignore the
+    instruction and invent authors, titles, and arXiv IDs that look authoritative
+    and are entirely wrong. Fabricated provenance is the single worst output this
+    product can produce, so strip it deterministically instead of trusting the
+    model to obey.
+
+    Returns (cleaned_answer, was_stripped).
+    """
+    matches = list(_REF_HEADING_RE.finditer(answer))
+    if not matches:
+        return answer, False
+    cut = answer[: matches[-1].start()].rstrip()
+    # Never let the strip eat the entire answer (e.g. a model that opens with a
+    # "Sources" heading) — losing the body would be worse than the bibliography.
+    if not cut:
+        return answer, False
+    return cut, True
 
 
 def _extractive_answer(query: str, citation_meta: list[dict[str, Any]]) -> str:
@@ -675,6 +716,17 @@ async def verify_citations(state: AgentState) -> AgentState:
         }
 
     _emit(state, "verifying citations against sources...")
+
+    # Step 0: Strip any bibliography the model appended despite rule 7 forbidding
+    # it. Small models fabricate authors/titles/arXiv IDs there, and those
+    # fabrications would otherwise be counted as "verified" below because the
+    # [N] markers inside them are structurally valid.
+    answer, stripped_refs = _strip_fabricated_references(answer)
+    if stripped_refs:
+        logger.warning(
+            "Stripped model-generated References section (bibliography is rendered from real citation metadata)"
+        )
+        _emit(state, "removed model-invented bibliography")
 
     # Step 1: Validate that cited numbers exist in context
     cited_nums = set(int(m) for m in re.findall(r"\[(\d+)\]", answer))
