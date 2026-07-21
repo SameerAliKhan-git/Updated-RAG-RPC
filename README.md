@@ -1,10 +1,22 @@
 # Corpus — Agentic Research Paper Curator
 
+<p align="center">
+  <img src="docs/images/hero.webp" alt="Corpus — ask your papers anything, cited to the exact page, every time. Research papers dissolve into a flowing gradient that resolves into a cited chat answer." width="100%">
+</p>
+
 > *Ask your papers anything — cited to the exact page, every time.*
 
 **Corpus** is a production-grade, fully open-source agentic RAG system for research papers. It ingests papers from arXiv (or your own PDFs and Zotero library), and answers technical questions with **every claim cited to the exact page of the exact source** — viewable in an in-app PDF reader with the cited passage highlighted. It runs **100% locally and free**: no paid APIs, no cloud dependencies.
 
 The UI follows the **Google Gemini design language** — light/dark themes, the signature gradient, pill-shaped surfaces, and functional motion.
+
+## From Claim to Page — the Core Promise
+
+Every sentence Corpus generates carries an inline `[N]` that resolves to the exact section and page of the source PDF, with the supporting passage highlighted. Citations the source doesn't actually support are stripped before you ever see them.
+
+<p align="center">
+  <img src="docs/images/trust-chain.webp" alt="From Claim to Page: an answer's [2] citation chip links to a citation card (paper title, section, page 7), to the highlighted passage in the source PDF, to a verification badge reading 'claim supported by source' — unsupported citations are stripped, not shown." width="100%">
+</p>
 
 ---
 
@@ -21,6 +33,13 @@ The UI follows the **Google Gemini design language** — light/dark themes, the 
 ---
 
 ## System Architecture
+
+<p align="center">
+  <img src="docs/images/architecture.webp" alt="Corpus architecture in six layers: Clients (React SPA, Telegram bot) → FastAPI → the LangGraph agentic pipeline (route, plan, retrieve, CRAG grade, rerank, build context, generate, verify citations, with rewrite-query and live-arXiv fallbacks) → local models (Ollama, MiniLM reranker, Piper TTS) → data stores (PostgreSQL, OpenSearch, Redis, PDF cache) → opt-in Airflow offline pipelines." width="100%">
+</p>
+
+<details>
+<summary>Same diagram as editable Mermaid source</summary>
 
 ```mermaid
 flowchart TB
@@ -74,7 +93,24 @@ flowchart TB
     TRAIN --> RERANKER
 ```
 
+</details>
+
+### Self-Correcting Agentic Pipeline
+
+The pipeline doesn't just retrieve-then-answer. When retrieval comes back thin it **rewrites the query and retries**; when the local corpus is exhausted it falls back to a **live arXiv lookup**; when a generated citation isn't supported it's **stripped and re-verified**; and when the corpus genuinely lacks coverage it **admits the gap instead of guessing**.
+
+<p align="center">
+  <img src="docs/images/agentic-loop.webp" alt="Agentic RAG pipeline with self-correction: the happy path route → plan → retrieve → grade → rerank → build context → generate → verify citations → finalize, with correction loops — insufficient chunks rewrite the query, exhausted retries trigger a live arXiv lookup, unsupported citations are stripped and re-verified, and genuinely missing coverage yields an honest gap admission." width="100%">
+</p>
+
 ## End-to-End: What Happens When You Ask a Question
+
+<p align="center">
+  <img src="docs/images/sequence-flow.webp" alt="Sequence diagram of a question: browser POSTs to nginx which proxies to FastAPI (SSE, buffering off); FastAPI sanitizes and checks the semantic cache, then calls the LangGraph pipeline, which streams a router trace, runs hybrid BM25+KNN search on OpenSearch, grades chunks on Ollama, reranks and builds cited context, streams generation tokens live, verifies citations, and streams citation and done events; clicking [N] opens the PDF at the cited page with the passage highlighted." width="100%">
+</p>
+
+<details>
+<summary>Same diagram as editable Mermaid source</summary>
 
 ```mermaid
 sequenceDiagram
@@ -103,7 +139,33 @@ sequenceDiagram
     U->>U: click [N] → PDF opens at page, passage highlighted
 ```
 
-**The ingestion path** (daily DAG or PDF upload): arXiv fetch / upload → **Docling** layout-aware parse (sections, tables, figures, equations, **page numbers**) → structure-aware chunking (~500 words, atomic visual blocks) → visual-summary LLM pass → **bge-m3** embeddings via Ollama → dual-write to Postgres (source of truth) + OpenSearch (search index).
+</details>
+
+## Ingestion Path
+
+Whether a paper arrives from the daily arXiv DAG or a manual PDF upload, it flows through the same layout-aware pipeline — and the **page number is preserved end to end** so every future citation can point at the exact page.
+
+<p align="center">
+  <img src="docs/images/ingestion.webp" alt="Ingestion path: arXiv fetch or PDF upload → Docling layout-aware parse (sections, tables, figures, equations, page numbers) → structure-aware chunking (~500 words, atomic visual blocks) → visual-summary LLM pass → bge-m3 embeddings via Ollama (1024-dim) → dual-write to PostgreSQL (source of truth) and OpenSearch (search index), with the page number preserved throughout." width="100%">
+</p>
+
+## Hybrid Retrieval — BM25 + Vector, Fused
+
+Every query runs **both** a BM25 keyword search and a KNN vector search (bge-m3), and the two rankings are merged with **Reciprocal Rank Fusion** — so a passage that keyword search ranks low but vector search ranks high still survives into the context. A cross-encoder reranker then does the final precise scoring down to the top 4 cited chunks.
+
+<p align="center">
+  <img src="docs/images/hybrid-retrieval.webp" alt="Hybrid retrieval: a query fans out to BM25 keyword search and KNN vector search (bge-m3, 1024-dim), each producing a ranked list; a document ranked 5th by keywords but 2nd by vectors survives Reciprocal Rank Fusion into the fused top results, which feed a MiniLM cross-encoder reranker that outputs the top 4 chunks injected into the generation prompt." width="100%">
+</p>
+
+<p align="center"><sub><i>Document titles and scores above are illustrative.</i></sub></p>
+
+## Quality Flywheel
+
+Corpus gets better the more it's used. Thumbs feedback is stored with the cited passages, monthly fine-tuning trains a candidate reranker, and an **eval gate only promotes it if it beats the current model** on a held-out set — while nightly golden-set evaluation tracks faithfulness, relevancy, and hit@k/MRR over time.
+
+<p align="center">
+  <img src="docs/images/flywheel.webp" alt="Quality flywheel: users rate answers → feedback stored with cited passages → monthly reranker fine-tuning (needs ≥50 rated answers) → eval gate comparing held-out AUC against the base model; a pass auto-promotes the model to production for better answers, a fail keeps collecting; a side branch runs nightly golden-set RAGAS evaluation tracking faithfulness, relevancy, and hit@k/MRR over time." width="100%">
+</p>
 
 ---
 
