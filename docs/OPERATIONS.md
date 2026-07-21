@@ -1,7 +1,8 @@
 # Corpus — Operations & Troubleshooting
 
-The single operational reference for running Corpus day to day. Architecture,
-features, and quickstart live in the [README](../README.md); design tokens in
+The single operational reference for running Corpus day to day. **First-time setup
+and the daily startup sequence live in [STARTUP.md](STARTUP.md).** Architecture and
+features are in the [README](../README.md); design tokens in
 [frontend/DESIGN.md](../frontend/DESIGN.md). Real secrets belong in `.env` /
 `local_credentials.txt` (both gitignored) — never in this file.
 

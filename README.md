@@ -171,6 +171,10 @@ Corpus gets better the more it's used. Thumbs feedback is stored with the cited 
 
 ## Quick Start
 
+> 📖 **New machine, or just need the startup steps?** See the full
+> [Startup Guide](docs/STARTUP.md) — prerequisites, required host environment
+> variables, what each container does, verification, and shutdown.
+
 **Prerequisites:** Docker Desktop, [Ollama](https://ollama.com) installed natively on the host, Node 20+, Python 3.12 + [uv](https://docs.astral.sh/uv/).
 
 ```powershell
